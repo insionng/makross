@@ -335,12 +335,12 @@ import (
 	"github.com/insionng/makross/file"
 )
 
-router := makross.NewRouter()
+m := makross.New()
 
 // serve index file
-router.Get("/", file.Content("ui/index.html"))
+m.Get("/", file.Content("ui/index.html"))
 // serve files under the "ui" subdirectory
-router.Get("/*", file.Server(file.PathMap{
+m.Get("/*", file.Server(file.PathMap{
 	"/": "/ui/",
 }))
 ```
