@@ -34,7 +34,7 @@ go get github.com/insionng/makross
 
 ## Getting Started
 
-For a complete RESTful application boilerplate based on Makross, please refer to the [golang-restful-starter-kit](https://github.com/qiangxue/golang-restful-starter-kit). Below we describe how to create a simple REST API using Makross.
+Below we describe how to create a simple REST API using Makross.
 
 Create a `server.go` file with the following content:
 
