@@ -4,6 +4,8 @@ package makross
 
 import (
 	"context"
+	ktx "context"
+	"io"
 	"net/http"
 	"os"
 	"sort"
@@ -24,9 +26,11 @@ type (
 		routes           []*Route
 		namedRoutes      map[string]*Route
 		stores           map[string]routeStore
+		data             map[string]interface{} // data items managed by Key , Value
 		maxParams        int
 		notFound         []Handler
 		notFoundHandlers []Handler
+		renderer         Renderer
 		http.Server
 	}
 
@@ -36,21 +40,108 @@ type (
 		Get(key string, pvalues []string) (data interface{}, pnames []string)
 		String() string
 	}
+
+	// Renderer is the interface that wraps the Render function.
+	Renderer interface {
+		Render(io.Writer, string, *Context) error
+	}
 )
 
-// Methods lists all supported HTTP methods by Makross.
-var Methods = []string{
-	"CONNECT",
-	"DELETE",
-	"GET",
-	"HEAD",
-	"OPTIONS",
-	"PATCH",
-	"POST",
-	"PUT",
-	"TRACE",
-}
+// Export HTTP methods
+const (
+	CONNECT = "CONNECT"
+	DELETE  = "DELETE"
+	GET     = "GET"
+	HEAD    = "HEAD"
+	OPTIONS = "OPTIONS"
+	PATCH   = "PATCH"
+	POST    = "POST"
+	PUT     = "PUT"
+	TRACE   = "TRACE"
+)
 
+var (
+	// Methods lists all supported HTTP methods by Makross.
+	Methods = []string{
+		CONNECT,
+		DELETE,
+		GET,
+		HEAD,
+		OPTIONS,
+		PATCH,
+		POST,
+		PUT,
+		TRACE,
+	}
+)
+
+// MIME types
+const (
+	MIMEApplicationJSON                  = "application/json"
+	MIMEApplicationJSONCharsetUTF8       = MIMEApplicationJSON + "; " + charsetUTF8
+	MIMEApplicationJavaScript            = "application/javascript"
+	MIMEApplicationJavaScriptCharsetUTF8 = MIMEApplicationJavaScript + "; " + charsetUTF8
+	MIMEApplicationXML                   = "application/xml"
+	MIMEApplicationXMLCharsetUTF8        = MIMEApplicationXML + "; " + charsetUTF8
+	MIMEApplicationForm                  = "application/x-www-form-urlencoded"
+	MIMEApplicationProtobuf              = "application/protobuf"
+	MIMEApplicationMsgpack               = "application/msgpack"
+	MIMETextHTML                         = "text/html"
+	MIMETextHTMLCharsetUTF8              = MIMETextHTML + "; " + charsetUTF8
+	MIMETextPlain                        = "text/plain"
+	MIMETextPlainCharsetUTF8             = MIMETextPlain + "; " + charsetUTF8
+	MIMEMultipartForm                    = "multipart/form-data"
+	MIMEOctetStream                      = "application/octet-stream"
+)
+
+const (
+	charsetUTF8 = "charset=utf-8"
+)
+
+// Headers
+const (
+	HeaderAcceptEncoding                = "Accept-Encoding"
+	HeaderAllow                         = "Allow"
+	HeaderAuthorization                 = "Authorization"
+	HeaderContentDisposition            = "Content-Disposition"
+	HeaderContentEncoding               = "Content-Encoding"
+	HeaderContentLength                 = "Content-Length"
+	HeaderContentType                   = "Content-Type"
+	HeaderCookie                        = "Cookie"
+	HeaderSetCookie                     = "Set-Cookie"
+	HeaderIfModifiedSince               = "If-Modified-Since"
+	HeaderLastModified                  = "Last-Modified"
+	HeaderLocation                      = "Location"
+	HeaderUpgrade                       = "Upgrade"
+	HeaderVary                          = "Vary"
+	HeaderWWWAuthenticate               = "WWW-Authenticate"
+	HeaderXForwardedProto               = "X-Forwarded-Proto"
+	HeaderXHTTPMethodOverride           = "X-HTTP-Method-Override"
+	HeaderXForwardedFor                 = "X-Forwarded-For"
+	HeaderXRealIP                       = "X-Real-IP"
+	HeaderServer                        = "Server"
+	HeaderOrigin                        = "Origin"
+	HeaderAccessControlRequestMethod    = "Access-Control-Request-Method"
+	HeaderAccessControlRequestHeaders   = "Access-Control-Request-Headers"
+	HeaderAccessControlAllowOrigin      = "Access-Control-Allow-Origin"
+	HeaderAccessControlAllowMethods     = "Access-Control-Allow-Methods"
+	HeaderAccessControlAllowHeaders     = "Access-Control-Allow-Headers"
+	HeaderAccessControlAllowCredentials = "Access-Control-Allow-Credentials"
+	HeaderAccessControlExposeHeaders    = "Access-Control-Expose-Headers"
+	HeaderAccessControlMaxAge           = "Access-Control-Max-Age"
+
+	// Security
+	HeaderStrictTransportSecurity = "Strict-Transport-Security"
+	HeaderXContentTypeOptions     = "X-Content-Type-Options"
+	HeaderXXSSProtection          = "X-XSS-Protection"
+	HeaderXFrameOptions           = "X-Frame-Options"
+	HeaderContentSecurityPolicy   = "Content-Security-Policy"
+	HeaderXCSRFToken              = "X-CSRF-Token"
+)
+
+// Status
+// HTTP status codes as registered with IANA.
+// See: http://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
 const (
 	StatusContinue           = 100 // RFC 7231, 6.2.1
 	StatusSwitchingProtocols = 101 // RFC 7231, 6.2.2
@@ -67,13 +158,13 @@ const (
 	StatusAlreadyReported      = 208 // RFC 5842, 7.1
 	StatusIMUsed               = 226 // RFC 3229, 10.4.1
 
-	StatusMultipleChoices  = 300 // RFC 7231, 6.4.1
-	StatusMovedPermanently = 301 // RFC 7231, 6.4.2
-	StatusFound            = 302 // RFC 7231, 6.4.3
-	StatusSeeOther         = 303 // RFC 7231, 6.4.4
-	StatusNotModified      = 304 // RFC 7232, 4.1
-	StatusUseProxy         = 305 // RFC 7231, 6.4.5
-
+	StatusMultipleChoices   = 300 // RFC 7231, 6.4.1
+	StatusMovedPermanently  = 301 // RFC 7231, 6.4.2
+	StatusFound             = 302 // RFC 7231, 6.4.3
+	StatusSeeOther          = 303 // RFC 7231, 6.4.4
+	StatusNotModified       = 304 // RFC 7232, 4.1
+	StatusUseProxy          = 305 // RFC 7231, 6.4.5
+	_                       = 306 // RFC 7231, 6.4.6 (Unused)
 	StatusTemporaryRedirect = 307 // RFC 7231, 6.4.7
 	StatusPermanentRedirect = 308 // RFC 7538, 3
 
@@ -118,6 +209,78 @@ const (
 	StatusNetworkAuthenticationRequired = 511 // RFC 6585, 6
 )
 
+var statusText = map[int]string{
+	StatusContinue:           "Continue",
+	StatusSwitchingProtocols: "Switching Protocols",
+	StatusProcessing:         "Processing",
+
+	StatusOK:                   "OK",
+	StatusCreated:              "Created",
+	StatusAccepted:             "Accepted",
+	StatusNonAuthoritativeInfo: "Non-Authoritative Information",
+	StatusNoContent:            "No Content",
+	StatusResetContent:         "Reset Content",
+	StatusPartialContent:       "Partial Content",
+	StatusMultiStatus:          "Multi-Status",
+	StatusAlreadyReported:      "Already Reported",
+	StatusIMUsed:               "IM Used",
+
+	StatusMultipleChoices:   "Multiple Choices",
+	StatusMovedPermanently:  "Moved Permanently",
+	StatusFound:             "Found",
+	StatusSeeOther:          "See Other",
+	StatusNotModified:       "Not Modified",
+	StatusUseProxy:          "Use Proxy",
+	StatusTemporaryRedirect: "Temporary Redirect",
+	StatusPermanentRedirect: "Permanent Redirect",
+
+	StatusBadRequest:                   "Bad Request",
+	StatusUnauthorized:                 "Unauthorized",
+	StatusPaymentRequired:              "Payment Required",
+	StatusForbidden:                    "Forbidden",
+	StatusNotFound:                     "Not Found",
+	StatusMethodNotAllowed:             "Method Not Allowed",
+	StatusNotAcceptable:                "Not Acceptable",
+	StatusProxyAuthRequired:            "Proxy Authentication Required",
+	StatusRequestTimeout:               "Request Timeout",
+	StatusConflict:                     "Conflict",
+	StatusGone:                         "Gone",
+	StatusLengthRequired:               "Length Required",
+	StatusPreconditionFailed:           "Precondition Failed",
+	StatusRequestEntityTooLarge:        "Request Entity Too Large",
+	StatusRequestURITooLong:            "Request URI Too Long",
+	StatusUnsupportedMediaType:         "Unsupported Media Type",
+	StatusRequestedRangeNotSatisfiable: "Requested Range Not Satisfiable",
+	StatusExpectationFailed:            "Expectation Failed",
+	StatusTeapot:                       "I'm a teapot",
+	StatusUnprocessableEntity:          "Unprocessable Entity",
+	StatusLocked:                       "Locked",
+	StatusFailedDependency:             "Failed Dependency",
+	StatusUpgradeRequired:              "Upgrade Required",
+	StatusPreconditionRequired:         "Precondition Required",
+	StatusTooManyRequests:              "Too Many Requests",
+	StatusRequestHeaderFieldsTooLarge:  "Request Header Fields Too Large",
+	StatusUnavailableForLegalReasons:   "Unavailable For Legal Reasons",
+
+	StatusInternalServerError:           "Internal Server Error",
+	StatusNotImplemented:                "Not Implemented",
+	StatusBadGateway:                    "Bad Gateway",
+	StatusServiceUnavailable:            "Service Unavailable",
+	StatusGatewayTimeout:                "Gateway Timeout",
+	StatusHTTPVersionNotSupported:       "HTTP Version Not Supported",
+	StatusVariantAlsoNegotiates:         "Variant Also Negotiates",
+	StatusInsufficientStorage:           "Insufficient Storage",
+	StatusLoopDetected:                  "Loop Detected",
+	StatusNotExtended:                   "Not Extended",
+	StatusNetworkAuthenticationRequired: "Network Authentication Required",
+}
+
+// StatusText returns a text for the HTTP status code. It returns the empty
+// string if the code is unknown.
+func StatusText(code int) string {
+	return statusText[code]
+}
+
 // New creates a new Makross object.
 func New() *Makross {
 	r := &Makross{
@@ -128,6 +291,7 @@ func New() *Makross {
 	r.NotFound(MethodNotAllowedHandler, NotFoundHandler)
 	r.pool.New = func() interface{} {
 		return &Context{
+			ktx:     ktx.Background(),
 			pvalues: make([]string, r.maxParams),
 			makross: r,
 		}
@@ -135,16 +299,34 @@ func New() *Makross {
 	return r
 }
 
+// AcquireContext returns an empty `Context` instance from the pool.
+// You must return the context by calling `ReleaseContext()`.
+func (m *Makross) AcquireContext() *Context {
+	if ctx, okay := m.pool.Get().(*Context); okay {
+		return ctx
+	} else {
+		panic("Not Standard Makross Context")
+		return nil
+	}
+}
+
+// ReleaseContext returns the `Context` instance back to the pool.
+// You must call it after `AcquireContext()`.
+func (m *Makross) ReleaseContext(c *Context) {
+	c.Response.Header().Set("Server", "Makross")
+	m.pool.Put(c)
+}
+
 // ServeHTTP handles the HTTP request.
 // It is required by http.Handler
-func (r *Makross) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	c := r.pool.Get().(*Context)
-	c.init(res, req)
-	c.handlers, c.pnames = r.find(req.Method, req.URL.Path, c.pvalues)
+func (m *Makross) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	c := m.AcquireContext()
+	c.Reset(res, req)
+	c.handlers, c.pnames = m.find(req.Method, req.URL.Path, c.pvalues)
 	if err := c.Next(); err != nil {
-		r.handleError(c, err)
+		m.HandleError(c, err)
 	}
-	r.pool.Put(c)
+	m.ReleaseContext(c)
 }
 
 // Stop 优雅停止HTTP服务 不超过特定时长
@@ -182,6 +364,11 @@ func (r *Makross) Use(handlers ...Handler) {
 	r.notFoundHandlers = combineHandlers(r.handlers, r.notFound)
 }
 
+// SetRenderer registers an HTML template renderer. It's invoked by `Context#Render()`.
+func (m *Makross) SetRenderer(r Renderer) {
+	m.renderer = r
+}
+
 // NotFound specifies the handlers that should be invoked when the makross cannot find any route matching a request.
 // Note that the handlers registered via Use will be invoked first in this case.
 func (r *Makross) NotFound(handlers ...Handler) {
@@ -189,12 +376,12 @@ func (r *Makross) NotFound(handlers ...Handler) {
 	r.notFoundHandlers = combineHandlers(r.handlers, r.notFound)
 }
 
-// handleError is the error handler for handling any unhandled errors.
-func (r *Makross) handleError(c *Context, err error) {
-	if httpError, ok := err.(HTTPError); ok {
+// HandleError is the error handler for handling any unhandled errors.
+func (r *Makross) HandleError(c *Context, err error) {
+	if httpError, okay := err.(HTTPError); okay {
 		http.Error(c.Response, httpError.Error(), httpError.StatusCode())
 	} else {
-		http.Error(c.Response, err.Error(), http.StatusInternalServerError)
+		http.Error(c.Response, err.Error(), StatusInternalServerError)
 	}
 }
 

@@ -74,15 +74,15 @@ func TestRouterFind(t *testing.T) {
 }
 
 func TestRouterHandleError(t *testing.T) {
-	r := New()
+	m := New()
 	res := httptest.NewRecorder()
 	c := &Context{Response: res}
-	r.handleError(c, errors.New("abc"))
+	m.HandleError(c, errors.New("abc"))
 	assert.Equal(t, http.StatusInternalServerError, res.Code)
 
 	res = httptest.NewRecorder()
 	c = &Context{Response: res}
-	r.handleError(c, NewHTTPError(http.StatusNotFound))
+	m.HandleError(c, NewHTTPError(http.StatusNotFound))
 	assert.Equal(t, http.StatusNotFound, res.Code)
 }
 

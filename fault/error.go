@@ -43,7 +43,8 @@ func ErrorHandler(logf LogFunc, errorf ...ConvertErrorFunc) makross.Handler {
 			err = errorf[0](c, err)
 		}
 
-		writeError(c, err)
+		//writeError(c, err)
+		c.HandleError(err)
 		c.Abort()
 
 		return nil

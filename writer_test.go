@@ -32,7 +32,7 @@ func TestDefaultDataWriter(t *testing.T) {
 
 	res = httptest.NewRecorder()
 	c := &Context{}
-	c.init(res, nil)
+	c.Reset(res, nil)
 	assert.Nil(t, c.Write("abc"))
 	assert.Equal(t, "abc", res.Body.String())
 }

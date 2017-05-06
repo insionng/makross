@@ -35,7 +35,7 @@ func TestContextInit(t *testing.T) {
 	assert.Nil(t, c.Request)
 	assert.Equal(t, 0, len(c.handlers))
 	req, _ := http.NewRequest("GET", "/users/", nil)
-	c.init(httptest.NewRecorder(), req)
+	c.Reset(httptest.NewRecorder(), req)
 	assert.NotNil(t, c.Response)
 	assert.NotNil(t, c.Request)
 	assert.Equal(t, -1, c.index)
@@ -52,7 +52,7 @@ func TestContextURL(t *testing.T) {
 
 func TestContextGetSet(t *testing.T) {
 	c := NewContext(nil, nil)
-	c.init(nil, nil)
+	c.Reset(nil, nil)
 	assert.Nil(t, c.Get("abc"))
 	c.Set("abc", "123")
 	c.Set("xyz", 123)
@@ -119,7 +119,7 @@ func testNewContext(handlers ...Handler) (*Context, *httptest.ResponseRecorder) 
 	res := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "http://127.0.0.1/users", nil)
 	c := &Context{}
-	c.init(res, req)
+	c.Reset(res, req)
 	c.handlers = handlers
 	return c, res
 }
