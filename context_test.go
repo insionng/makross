@@ -19,14 +19,14 @@ func TestContextParam(t *testing.T) {
 
 	c.pvalues = values
 	c.pnames = nil
-	assert.Equal(t, "", c.Param(""))
-	assert.Equal(t, "", c.Param("Name"))
+	assert.Equal(t, "", c.Param("").String())
+	assert.Equal(t, "", c.Param("Name").String())
 
 	c.pnames = []string{"Name", "Age"}
-	assert.Equal(t, "", c.Param(""))
-	assert.Equal(t, "a", c.Param("Name"))
-	assert.Equal(t, "b", c.Param("Age"))
-	assert.Equal(t, "", c.Param("Xyz"))
+	assert.Equal(t, "", c.Param("").String())
+	assert.Equal(t, "a", c.Param("Name").String())
+	assert.Equal(t, "b", c.Param("Age").String())
+	assert.Equal(t, "", c.Param("Xyz").String())
 }
 
 func TestContextInit(t *testing.T) {

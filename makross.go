@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -283,20 +284,20 @@ func StatusText(code int) string {
 
 // New creates a new Makross object.
 func New() *Makross {
-	r := &Makross{
+	m := &Makross{
 		namedRoutes: make(map[string]*Route),
 		stores:      make(map[string]routeStore),
 	}
-	r.RouteGroup = *newRouteGroup("", r, make([]Handler, 0))
-	r.NotFound(MethodNotAllowedHandler, NotFoundHandler)
-	r.pool.New = func() interface{} {
+	m.RouteGroup = *newRouteGroup("", m, make([]Handler, 0))
+	m.NotFound(MethodNotAllowedHandler, NotFoundHandler)
+	m.pool.New = func() interface{} {
 		return &Context{
 			ktx:     ktx.Background(),
-			pvalues: make([]string, r.maxParams),
-			makross: r,
+			pvalues: make([]string, m.maxParams),
+			makross: m,
 		}
 	}
-	return r
+	return m
 }
 
 // AcquireContext returns an empty `Context` instance from the pool.
@@ -354,8 +355,8 @@ func (r *Makross) Route(name string) *Route {
 }
 
 // Routes returns all routes managed by the makross.
-func (r *Makross) Routes() []*Route {
-	return r.routes
+func (m *Makross) Routes() []*Route {
+	return m.routes
 }
 
 // Use appends the specified handlers to the makross and shares them with all routes.
@@ -367,6 +368,54 @@ func (r *Makross) Use(handlers ...Handler) {
 // SetRenderer registers an HTML template renderer. It's invoked by `Context#Render()`.
 func (m *Makross) SetRenderer(r Renderer) {
 	m.renderer = r
+}
+
+func (m *Makross) Pull(key string) interface{} {
+	return m.data[key]
+}
+
+func (m *Makross) Push(key string, value interface{}) {
+	if m.data == nil {
+		m.data = make(map[string]interface{})
+	}
+	m.data[key] = value
+}
+
+func (m *Makross) PullStore() map[string]interface{} {
+	return m.data
+}
+
+func (m *Makross) PushStore(data map[string]interface{}) {
+	if m.data == nil {
+		m.data = make(map[string]interface{})
+	}
+	for k, v := range data {
+		m.data[k] = v
+	}
+}
+
+// Static registers a new route with path prefix to serve static files from the
+// provided root directory.
+func (m *Makross) Static(prefix, root string) {
+	if prefix == "/" {
+		prefix = prefix + "*"
+	} else if len(prefix) > 1 {
+		if prefix[:1] != "/" {
+			prefix = prefix + "/*"
+		} else {
+			prefix = prefix + "*"
+		}
+	}
+	m.Get(prefix, func(c *Context) error {
+		return c.ServeFile(path.Join(root, c.Parameter(0)))
+	})
+}
+
+// File registers a new route with path to serve a static file.
+func (m *Makross) File(path, file string) {
+	m.Get(path, func(c *Context) error {
+		return c.ServeFile(file)
+	})
 }
 
 // NotFound specifies the handlers that should be invoked when the makross cannot find any route matching a request.
@@ -381,7 +430,9 @@ func (r *Makross) HandleError(c *Context, err error) {
 	if httpError, okay := err.(HTTPError); okay {
 		http.Error(c.Response, httpError.Error(), httpError.StatusCode())
 	} else {
-		http.Error(c.Response, err.Error(), StatusInternalServerError)
+		if e, o := err.(error); o {
+			http.Error(c.Response, e.Error(), StatusInternalServerError)
+		}
 	}
 }
 
@@ -430,7 +481,7 @@ func (r *Makross) findAllowedMethods(path string) map[string]bool {
 
 // NotFoundHandler returns a 404 HTTP error indicating a request has no matching route.
 func NotFoundHandler(*Context) error {
-	return NewHTTPError(http.StatusNotFound)
+	return NewHTTPError(StatusNotFound)
 }
 
 // MethodNotAllowedHandler handles the situation when a request has matching route without matching HTTP method.

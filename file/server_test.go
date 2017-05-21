@@ -3,13 +3,12 @@
 package file
 
 import (
+	"github.com/insionng/makross"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/insionng/makross"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestParsePathMap(t *testing.T) {
@@ -72,7 +71,7 @@ func TestContent(t *testing.T) {
 	c := makross.NewContext(res, req)
 	err := h(c)
 	assert.Nil(t, err)
-	assert.Equal(t, "hello\n", res.Body.String())
+	assert.Equal(t, "hello", res.Body.String())
 
 	h = Content("testdata/index.html")
 	req, _ = http.NewRequest("POST", "/index.html", nil)
@@ -103,14 +102,14 @@ func TestContent(t *testing.T) {
 }
 
 func TestServer(t *testing.T) {
-	h := Server(PathMap{"/css": "/testdata/css"})
+	h1 := Server(PathMap{"/css": "/testdata/css"})
 	tests := []struct {
 		id          string
 		method, url string
 		status      int
 		body        string
 	}{
-		{"t1", "GET", "/css/main.css", 0, "body {}\n"},
+		{"t1", "GET", "/css/main.css", 0, "body {}"},
 		{"t2", "HEAD", "/css/main.css", 0, ""},
 		{"t3", "GET", "/css/main2.css", http.StatusNotFound, ""},
 		{"t4", "POST", "/css/main.css", http.StatusMethodNotAllowed, ""},
@@ -121,7 +120,7 @@ func TestServer(t *testing.T) {
 		req, _ := http.NewRequest(test.method, test.url, nil)
 		res := httptest.NewRecorder()
 		c := makross.NewContext(res, req)
-		err := h(c)
+		err := h1(c)
 		if test.status == 0 {
 			assert.Nil(t, err, test.id)
 			assert.Equal(t, test.body, res.Body.String(), test.id)
@@ -132,7 +131,7 @@ func TestServer(t *testing.T) {
 		}
 	}
 
-	h = Server(PathMap{"/css": "/testdata/css"}, ServerOptions{
+	h2 := Server(PathMap{"/css": "/testdata/css"}, ServerOptions{
 		IndexFile: "index.html",
 		Allow: func(c *makross.Context, path string) bool {
 			return path != "/testdata/css/main.css"
@@ -142,19 +141,19 @@ func TestServer(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/css/main.css", nil)
 	res := httptest.NewRecorder()
 	c := makross.NewContext(res, req)
-	err := h(c)
+	err := h2(c)
 	assert.NotNil(t, err)
 
 	req, _ = http.NewRequest("GET", "/css", nil)
 	res = httptest.NewRecorder()
 	c = makross.NewContext(res, req)
-	err = h(c)
+	err = h2(c)
 	assert.Nil(t, err)
-	assert.Equal(t, "css.html\n", res.Body.String())
+	assert.Equal(t, "css.html", res.Body.String())
 
 	{
 		// with CatchAll option
-		h = Server(PathMap{"/css": "/testdata/css"}, ServerOptions{
+		h3 := Server(PathMap{"/css": "/testdata/css"}, ServerOptions{
 			IndexFile:    "index.html",
 			CatchAllFile: "testdata/index.html",
 			Allow: func(c *makross.Context, path string) bool {
@@ -165,21 +164,21 @@ func TestServer(t *testing.T) {
 		req, _ := http.NewRequest("GET", "/css/main.css", nil)
 		res := httptest.NewRecorder()
 		c := makross.NewContext(res, req)
-		err := h(c)
+		err := h3(c)
 		assert.NotNil(t, err)
 
 		req, _ = http.NewRequest("GET", "/css", nil)
 		res = httptest.NewRecorder()
 		c = makross.NewContext(res, req)
-		err = h(c)
+		err = h3(c)
 		assert.Nil(t, err)
-		assert.Equal(t, "css.html\n", res.Body.String())
+		assert.Equal(t, "css.html", res.Body.String())
 
 		req, _ = http.NewRequest("GET", "/css2", nil)
 		res = httptest.NewRecorder()
 		c = makross.NewContext(res, req)
-		err = h(c)
+		err = h3(c)
 		assert.Nil(t, err)
-		assert.Equal(t, "hello\n", res.Body.String())
+		assert.Equal(t, "hello", res.Body.String())
 	}
 }

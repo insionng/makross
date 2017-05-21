@@ -5,8 +5,22 @@ package makross
 import (
 	"bytes"
 	ktx "context"
+	"encoding/json"
+	"encoding/xml"
+	"fmt"
+	"io"
+	"mime"
 	"net"
 	"net/http"
+	"net/url"
+	"os"
+	"path"
+	"path/filepath"
+	"time"
+)
+
+const (
+	indexPage = "index.html"
 )
 
 // Context represents the contextual data and environment while processing an incoming HTTP request.
@@ -23,6 +37,16 @@ type Context struct {
 	writer   DataWriter
 }
 
+// Reset sets the request and response of the context and resets all other properties.
+func (c *Context) Reset(response http.ResponseWriter, request *http.Request) {
+	c.Response = response
+	c.Request = request
+	c.ktx = ktx.Background()
+	c.data = nil
+	c.index = -1
+	c.writer = DefaultDataWriter
+}
+
 // NewContext creates a new Context object with the given response, request, and the handlers.
 // This method is primarily provided for writing unit tests for handlers.
 func NewContext(res http.ResponseWriter, req *http.Request, handlers ...Handler) *Context {
@@ -34,6 +58,16 @@ func NewContext(res http.ResponseWriter, req *http.Request, handlers ...Handler)
 // Makross returns the Makross that is handling the incoming HTTP request.
 func (c *Context) Makross() *Makross {
 	return c.makross
+}
+
+// Stop 优雅停止HTTP服务 不超过特定时长
+func (c *Context) Stop(times ...int64) error {
+	return c.makross.Stop(times...)
+}
+
+// Close 立即关闭HTTP服务
+func (c *Context) Close() error {
+	return c.makross.Server.Close()
 }
 
 func (c *Context) Kontext() ktx.Context {
@@ -50,6 +84,22 @@ func (c *Context) Handler() Handler {
 
 func (c *Context) SetHandler(h Handler) {
 	c.handlers[c.index] = h
+}
+
+func (c *Context) NewCookie() *http.Cookie {
+	return new(http.Cookie)
+}
+
+func (c *Context) GetCookie(name string) (*http.Cookie, error) {
+	return c.Request.Cookie(name)
+}
+
+func (c *Context) SetCookie(cookie *http.Cookie) {
+	http.SetCookie(c.Response, cookie)
+}
+
+func (c *Context) GetCookies() []*http.Cookie {
+	return c.Request.Cookies()
 }
 
 func (c *Context) Error(status int, message ...interface{}) {
@@ -76,6 +126,7 @@ func (c *Context) RealIP() string {
 
 // Param returns the named parameter value that is found in the URL path matching the current route.
 // If the named parameter cannot be found, an empty string will be returned.
+/*
 func (c *Context) Param(name string) string {
 	for i, n := range c.pnames {
 		if n == name {
@@ -84,6 +135,7 @@ func (c *Context) Param(name string) string {
 	}
 	return ""
 }
+*/
 
 // Get returns the named data item previously registered with the context by calling Set.
 // If the named data item cannot be found, nil will be returned.
@@ -110,6 +162,30 @@ func (c *Context) SetStore(data map[string]interface{}) {
 
 func (c *Context) GetStore() map[string]interface{} {
 	return c.data
+}
+
+func (c *Context) Pull(key string) interface{} {
+	return c.makross.data[key]
+}
+
+func (c *Context) Push(key string, value interface{}) {
+	if c.makross.data == nil {
+		c.makross.data = make(map[string]interface{})
+	}
+	c.makross.data[key] = value
+}
+
+func (c *Context) PullStore() map[string]interface{} {
+	return c.makross.data
+}
+
+func (c *Context) PushStore(data map[string]interface{}) {
+	if c.makross.data == nil {
+		c.makross.data = make(map[string]interface{})
+	}
+	for k, v := range data {
+		c.makross.data[k] = v
+	}
 }
 
 // Query returns the first value for the named component of the URL query parameters.
@@ -173,8 +249,20 @@ func (c *Context) Next() error {
 // Abort skips the rest of the handlers associated with the current route.
 // Abort is normally used when a handler handles the request normally and wants to skip the rest of the handlers.
 // If a handler wants to indicate an error condition, it should simply return the error without calling Abort.
-func (c *Context) Abort() {
+func (c *Context) Abort() error {
 	c.index = len(c.handlers)
+	return nil
+}
+
+// Break 中断继续执行后续动作，返回指定状态及错误，不设置错误亦可.
+func (c *Context) Break(status int, err ...error) error {
+	var e error
+	if len(err) > 0 {
+		e = err[0]
+	}
+	c.Response.WriteHeader(status)
+	c.HandleError(e)
+	return c.Abort()
 }
 
 // URL creates a URL using the named route and the parameter values.
@@ -247,6 +335,210 @@ func (c *Context) String(s string, status ...int) (err error) {
 	return
 }
 
+func (c *Context) JSON(i interface{}, status ...int) (err error) {
+	var code int
+	if len(status) > 0 {
+		code = status[0]
+	} else {
+		code = StatusOK
+	}
+	b, err := json.Marshal(i)
+	if err != nil {
+		return err
+	}
+	return c.JSONBlob(b, code)
+}
+
+func (c *Context) JSONPretty(i interface{}, indent string, status ...int) (err error) {
+	var code int
+	if len(status) > 0 {
+		code = status[0]
+	} else {
+		code = StatusOK
+	}
+	b, err := json.MarshalIndent(i, "", indent)
+	if err != nil {
+		return
+	}
+	return c.JSONBlob(b, code)
+}
+
+func (c *Context) JSONBlob(b []byte, status ...int) (err error) {
+	var code int
+	if len(status) > 0 {
+		code = status[0]
+	} else {
+		code = StatusOK
+	}
+	return c.Blob(MIMEApplicationJSONCharsetUTF8, b, code)
+}
+
+func (c *Context) JSONP(callback string, i interface{}, status ...int) (err error) {
+	var code int
+	if len(status) > 0 {
+		code = status[0]
+	} else {
+		code = StatusOK
+	}
+	b, err := json.Marshal(i)
+	if err != nil {
+		return err
+	}
+	return c.JSONPBlob(callback, b, code)
+}
+
+func (c *Context) JSONPBlob(callback string, b []byte, status ...int) (err error) {
+	var code int
+	if len(status) > 0 {
+		code = status[0]
+	} else {
+		code = StatusOK
+	}
+	c.Response.Header().Set(HeaderContentType, MIMEApplicationJavaScriptCharsetUTF8)
+	c.Response.WriteHeader(code)
+	if err = c.Write([]byte(callback + "(")); err != nil {
+		return
+	}
+	if err = c.Write(b); err != nil {
+		return
+	}
+	err = c.Write([]byte(");"))
+	c.Abort()
+	return
+}
+
+func (c *Context) XML(i interface{}, status ...int) (err error) {
+	var code int
+	if len(status) > 0 {
+		code = status[0]
+	} else {
+		code = StatusOK
+	}
+	b, err := xml.Marshal(i)
+	if err != nil {
+		return err
+	}
+	return c.XMLBlob(b, code)
+}
+
+func (c *Context) XMLPretty(i interface{}, indent string, status ...int) (err error) {
+	var code int
+	if len(status) > 0 {
+		code = status[0]
+	} else {
+		code = StatusOK
+	}
+	b, err := xml.MarshalIndent(i, "", indent)
+	if err != nil {
+		return
+	}
+	return c.XMLBlob(b, code)
+}
+
+func (c *Context) XMLBlob(b []byte, status ...int) (err error) {
+	var code int
+	if len(status) > 0 {
+		code = status[0]
+	} else {
+		code = StatusOK
+	}
+	c.Response.Header().Set(HeaderContentType, MIMEApplicationXMLCharsetUTF8)
+	c.Response.WriteHeader(code)
+	if err = c.Write([]byte(xml.Header)); err != nil {
+		return
+	}
+	err = c.Write(b)
+	c.Abort()
+	return
+}
+
+func (c *Context) Blob(contentType string, b []byte, status ...int) (err error) {
+	var code int
+	if len(status) > 0 {
+		code = status[0]
+	} else {
+		code = StatusOK
+	}
+
+	c.Response.Header().Set(HeaderContentType, contentType)
+	c.Response.WriteHeader(code)
+	err = c.Write(b)
+	c.Abort()
+	return
+}
+
+func (c *Context) Stream(contentType string, r io.Reader, status ...int) (err error) {
+	var code int
+	if len(status) > 0 {
+		code = status[0]
+	} else {
+		code = StatusOK
+	}
+	c.Response.Header().Set(HeaderContentType, contentType)
+	c.Response.WriteHeader(code)
+	_, err = io.Copy(c.Response, r)
+	return
+}
+
+// ServeFile serves a view file, to send a file ( zip for example) to the client
+// you should use the SendFile(serverfilename,clientfilename)
+//
+// You can define your own "Content-Type" header also, after this function call
+// This function doesn't implement resuming (by range), use ctx.SendFile/fasthttp.ServeFileUncompressed(ctx.RequestCtx,path)/fasthttpServeFile(ctx.RequestCtx,path) instead
+//
+// Use it when you want to serve css/js/... files to the client, for bigger files and 'force-download' use the SendFile
+func (ctx *Context) ServeFile(file string) (err error) {
+	file, err = url.QueryUnescape(file) // Issue #839
+	if err != nil {
+		return
+	}
+
+	f, err := os.Open(file)
+	if err != nil {
+		return ErrNotFound
+	}
+	defer f.Close()
+	fi, _ := f.Stat()
+	if fi.IsDir() {
+		file = path.Join(file, indexPage)
+		f, err = os.Open(file)
+		if err != nil {
+			return ErrNotFound
+		}
+		fi, _ = f.Stat()
+	}
+	return ctx.ServeContent(f, fi.Name(), fi.ModTime())
+}
+
+// SendFile sends file for force-download to the client
+//
+// Use this instead of ServeFile to 'force-download' bigger files to the client
+func (c *Context) SendFile(filename string, destinationName string) error {
+	f, err := os.Open(filename)
+	if err != nil {
+		return ErrNotFound
+	}
+	defer f.Close()
+
+	c.Response.Header().Set(HeaderContentDisposition, "attachment;filename="+destinationName)
+	_, err = io.Copy(c.Response, f)
+	return err
+}
+
+func (c *Context) Attachment(file, name string) (err error) {
+	return c.contentDisposition(file, name, "attachment")
+}
+
+func (c *Context) Inline(file, name string) (err error) {
+	return c.contentDisposition(file, name, "inline")
+}
+
+func (c *Context) contentDisposition(file, name, dispositionType string) (err error) {
+	c.Response.Header().Set(HeaderContentDisposition, fmt.Sprintf("%s; filename=%s", dispositionType, name))
+	c.ServeFile(file)
+	return
+}
+
 func (c *Context) NoContent(status ...int) error {
 	var code int
 	if len(status) > 0 {
@@ -263,16 +555,6 @@ func (c *Context) SetDataWriter(writer DataWriter) {
 	c.writer = writer
 }
 
-// Reset sets the request and response of the context and resets all other properties.
-func (c *Context) Reset(response http.ResponseWriter, request *http.Request) {
-	c.Response = response
-	c.Request = request
-	c.ktx = ktx.Background()
-	c.data = nil
-	c.index = -1
-	c.writer = DefaultDataWriter
-}
-
 func getContentType(req *http.Request) string {
 	t := req.Header.Get("Content-Type")
 	for i, c := range t {
@@ -281,4 +563,75 @@ func getContentType(req *http.Request) string {
 		}
 	}
 	return t
+}
+
+// ContentTypeByExtension returns the MIME type associated with the file based on
+// its extension. It returns `application/octet-stream` incase MIME type is not
+// found.
+func (ctx *Context) ContentTypeByExtension(name string) (t string) {
+	ext := filepath.Ext(name)
+	//these should be found by the windows(registry) and unix(apache) but on windows some machines have problems on this part.
+	if t = mime.TypeByExtension(ext); t == "" {
+		// no use of map here because we will have to lock/unlock it, by hand is better, no problem:
+		if ext == ".json" {
+			t = MIMEApplicationJSON
+		} else if ext == ".zip" {
+			t = "application/zip"
+		} else if ext == ".3gp" {
+			t = "video/3gpp"
+		} else if ext == ".7z" {
+			t = "application/x-7z-compressed"
+		} else if ext == ".ace" {
+			t = "application/x-ace-compressed"
+		} else if ext == ".aac" {
+			t = "audio/x-aac"
+		} else if ext == ".ico" { // for any case
+			t = "image/x-icon"
+		} else if ext == ".png" {
+			t = "image/png"
+		} else {
+			t = MIMEOctetStream
+		}
+	}
+	return
+}
+
+// TimeFormat is the time format to use when generating times in HTTP
+// headers. It is like time.RFC1123 but hard-codes GMT as the time
+// zone. The time being formatted must be in UTC for Format to
+// generate the correct format.
+//
+// For parsing this time format, see ParseTime.
+const TimeFormat = "Mon, 02 Jan 2006 15:04:05 GMT"
+
+// RequestHeader returns the request header's value
+// accepts one parameter, the key of the header (string)
+// returns string
+func (c *Context) RequestHeader(key string) string {
+	return c.Request.Header.Get(key)
+}
+
+// ServeContent serves content, headers are autoset
+// receives three parameters, it's low-level function, instead you can use .ServeFile(string,bool)/SendFile(string,string)
+//
+// You can define your own "Content-Type" header also, after this function call
+// Doesn't implements resuming (by range), use ctx.SendFile instead
+func (ctx *Context) ServeContent(content io.ReadSeeker, filename string, modtime time.Time) error {
+	if t, err := time.Parse(TimeFormat, ctx.RequestHeader(HeaderIfModifiedSince)); err == nil && modtime.Before(t.Add(1*time.Second)) {
+		ctx.Response.Header().Del(HeaderContentType)
+		ctx.Response.Header().Del(HeaderContentLength)
+		ctx.Response.WriteHeader(StatusNotModified)
+		return nil
+	}
+
+	ctx.Response.Header().Set(HeaderContentType, ctx.ContentTypeByExtension(filename))
+	ctx.Response.Header().Set(HeaderLastModified, modtime.UTC().Format(TimeFormat))
+	ctx.Response.WriteHeader(StatusOK)
+	_, err := io.Copy(ctx.Response, content)
+	return err
+}
+
+// IsTLS implements `Context#TLS` function.
+func (c *Context) IsTLS() bool {
+	return false
 }

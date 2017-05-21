@@ -21,8 +21,8 @@ func TestErrorHandler(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/users/", nil)
 	c := makross.NewContext(res, req, h, handler1, handler2)
 	assert.Nil(t, c.Next())
-	assert.Equal(t, http.StatusInternalServerError, res.Code)
-	assert.Equal(t, "abc", res.Body.String())
+	assert.Equal(t, makross.StatusInternalServerError, res.Code)
+	assert.Equal(t, "abc\n", res.Body.String())
 	assert.Equal(t, "abc", buf.String())
 
 	buf.Reset()
@@ -41,7 +41,7 @@ func TestErrorHandler(t *testing.T) {
 	c = makross.NewContext(res, req, h, handler1, handler2)
 	assert.Nil(t, c.Next())
 	assert.Equal(t, http.StatusInternalServerError, res.Code)
-	assert.Equal(t, "123", res.Body.String())
+	assert.Equal(t, "123\n", res.Body.String())
 	assert.Equal(t, "abc", buf.String())
 
 	buf.Reset()
@@ -51,7 +51,7 @@ func TestErrorHandler(t *testing.T) {
 	c = makross.NewContext(res, req, h, handler1, handler2)
 	assert.Nil(t, c.Next())
 	assert.Equal(t, http.StatusInternalServerError, res.Code)
-	assert.Equal(t, "abc", res.Body.String())
+	assert.Equal(t, "abc\n", res.Body.String())
 	assert.Equal(t, "", buf.String())
 }
 

@@ -36,7 +36,7 @@ func Example() {
 		return c.Write("create a new user")
 	})
 	api.Put(`/users/<id:\d+>`, func(c *makross.Context) error {
-		return c.Write("update user " + c.Param("id"))
+		return c.Write("update user " + c.Param("id").String())
 	})
 
 	// serve index file

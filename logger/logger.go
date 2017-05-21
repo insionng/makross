@@ -104,8 +104,8 @@ func LoggerWithConfig(config LoggerConfig) makross.Handler {
 		req := c.Request
 		start := time.Now()
 		if err = c.Next(); err != nil {
-			if herr, okay := err.(*makross.HTTPError); okay {
-				c.Error(herr.Status, herr.Message)
+			if herr, okay := err.(makross.HTTPError); okay {
+				c.Error(herr.StatusCode(), herr.Error())
 			}
 		}
 		stop := time.Now()
@@ -127,27 +127,30 @@ func LoggerWithConfig(config LoggerConfig) makross.Handler {
 			case "method":
 				return w.Write([]byte(req.Method))
 			case "path":
-				p := string(c.Request.URL.EscapedPath())
+				p := c.Request.URL.Path
 				if p == "" {
 					p = "/"
 				}
 				return w.Write([]byte(p))
 			case "referer":
-				return w.Write([]byte(c.Request.Referer()))
+				return w.Write([]byte(req.Referer()))
 			case "user_agent":
 				return w.Write([]byte(req.UserAgent()))
 			case "status":
-				n := c.Response.StatusCode()
-				s := config.color.Green(n)
-				switch {
-				case n >= 500:
-					s = config.color.Red(n)
-				case n >= 400:
-					s = config.color.Yellow(n)
-				case n >= 300:
-					s = config.color.Cyan(n)
-				}
-				return w.Write([]byte(s))
+				/*
+					n, _ := config.Output.Write(buf.Bytes())
+					s := config.color.Green(n)
+					switch {
+					case n >= 500:
+						s = config.color.Red(n)
+					case n >= 400:
+						s = config.color.Yellow(n)
+					case n >= 300:
+						s = config.color.Cyan(n)
+					}
+					return w.Write([]byte(s))
+				*/
+				return w.Write([]byte("000"))
 			case "latency":
 				l := stop.Sub(start).Nanoseconds() / 1000
 				return w.Write([]byte(strconv.FormatInt(l, 10)))
@@ -160,9 +163,7 @@ func LoggerWithConfig(config LoggerConfig) makross.Handler {
 				}
 				return w.Write([]byte(b))
 			case "bytes_out":
-				res := c.Response
-				size := int64(len(res.Body()))
-				return w.Write([]byte(strconv.FormatInt(size, 10)))
+				return w.Write([]byte(strconv.FormatInt(int64(len(buf.Bytes())), 10)))
 			}
 			return 0, nil
 		})

@@ -2,21 +2,29 @@ package main
 
 import (
 	"github.com/insionng/makross"
+	//"github.com/insionng/makross/access"
+	//"github.com/insionng/makross/file"
 	"github.com/insionng/makross/gonder"
-	"github.com/insionng/makross/logger"
-	"github.com/insionng/makross/recover"
+	//"github.com/insionng/makross/logger"
+	//"github.com/insionng/makross/recover"
 	"github.com/insionng/makross/static"
+	//"log"
 )
 
 func main() {
 	v := makross.New()
-	v.Use(logger.Logger())
-	v.Use(recover.Recover())
+
+	//v.Use(recover.Recover())
+	//v.Use(logger.Logger())
+	//v.Use(access.Logger(log.Printf))
+	v.Use(static.Static("static"))
+	//v.Use(file.Server(file.PathMap{"/static": "/static"}))
+
 	v.SetRenderer(gonder.Renderor(gonder.Option{
 		DelimLeft:  "{{",
 		DelimRight: "}}",
 	}))
-	v.Use(static.Static("static"))
+
 	v.Get("/", func(self *makross.Context) error {
 		var data = make(map[string]interface{})
 		data["name"] = "Insion Ng"

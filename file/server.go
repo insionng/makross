@@ -1,6 +1,8 @@
-// Package makross is a high productive and modular web framework in Golang.
+// Copyright 2016 Qiang Xue. All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
 
-// Package file provides handlers that serve static files for the makross.
+// Package file provides handlers that serve static files for the ozzo makross package.
 package file
 
 import (
@@ -55,8 +57,8 @@ func init() {
 //
 //     import (
 //         "log"
-//         "github.com/insionng/makross"
-//         "github.com/insionng/makross/file"
+//         "github.com/go-ozzo/ozzo-makross"
+//         "github.com/go-ozzo/ozzo-makross/file"
 //     )
 //
 //     r := makross.New()
@@ -94,7 +96,8 @@ func Server(pathMap PathMap, opts ...ServerOptions) makross.Handler {
 
 		if file, err = dir.Open(path); err != nil {
 			if options.CatchAllFile != "" {
-				return serveFile(c, dir, options.CatchAllFile)
+				c.ServeFile(options.CatchAllFile) // ServeFile(c, dir, options.CatchAllFile)
+				return c.Abort()
 			}
 			return makross.NewHTTPError(http.StatusNotFound, err.Error())
 		}
@@ -105,31 +108,18 @@ func Server(pathMap PathMap, opts ...ServerOptions) makross.Handler {
 		}
 
 		if fstat.IsDir() {
-			if options.IndexFile == "" {
+			if len(options.IndexFile) == 0 {
 				return makross.NewHTTPError(http.StatusNotFound)
 			}
-			return serveFile(c, dir, filepath.Join(path, options.IndexFile))
+			fp := filepath.Join(".", path, options.IndexFile)
+			c.ServeFile(fp)
+			return c.Abort()
 		}
 
 		http.ServeContent(c.Response, c.Request, path, fstat.ModTime(), file)
-		return nil
+		//return c.ServeContent(file, path, fstat.ModTime())
+		return c.Abort()
 	}
-}
-
-func serveFile(c *makross.Context, dir http.Dir, path string) error {
-	file, err := dir.Open(path)
-	if err != nil {
-		return makross.NewHTTPError(http.StatusNotFound, err.Error())
-	}
-	defer file.Close()
-	fstat, err := file.Stat()
-	if err != nil {
-		return makross.NewHTTPError(http.StatusNotFound, err.Error())
-	} else if fstat.IsDir() {
-		return makross.NewHTTPError(http.StatusNotFound)
-	}
-	http.ServeContent(c.Response, c.Request, path, fstat.ModTime(), file)
-	return nil
 }
 
 // Content returns a handler that serves the content of the specified file as the response.
@@ -140,6 +130,7 @@ func Content(path string) makross.Handler {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(RootPath, path)
 	}
+
 	return func(c *makross.Context) error {
 		if c.Request.Method != "GET" && c.Request.Method != "HEAD" {
 			return makross.NewHTTPError(http.StatusMethodNotAllowed)
@@ -155,7 +146,9 @@ func Content(path string) makross.Handler {
 		} else if fstat.IsDir() {
 			return makross.NewHTTPError(http.StatusNotFound)
 		}
+
 		http.ServeContent(c.Response, c.Request, path, fstat.ModTime(), file)
+		//return c.ServeContent(file, path, fstat.ModTime())
 		return nil
 	}
 }
