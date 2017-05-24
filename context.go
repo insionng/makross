@@ -487,7 +487,7 @@ func (c *Context) Stream(contentType string, r io.Reader, status ...int) (err er
 // This function doesn't implement resuming (by range), use ctx.SendFile/fasthttp.ServeFileUncompressed(ctx.RequestCtx,path)/fasthttpServeFile(ctx.RequestCtx,path) instead
 //
 // Use it when you want to serve css/js/... files to the client, for bigger files and 'force-download' use the SendFile
-func (ctx *Context) ServeFile(file string) (err error) {
+func (c *Context) ServeFile(file string) (err error) {
 	file, err = url.QueryUnescape(file) // Issue #839
 	if err != nil {
 		return
@@ -507,7 +507,7 @@ func (ctx *Context) ServeFile(file string) (err error) {
 		}
 		fi, _ = f.Stat()
 	}
-	return ctx.ServeContent(f, fi.Name(), fi.ModTime())
+	return c.ServeContent(f, fi.Name(), fi.ModTime())
 }
 
 // SendFile sends file for force-download to the client
@@ -539,6 +539,7 @@ func (c *Context) contentDisposition(file, name, dispositionType string) (err er
 	return
 }
 
+// NoContent Only header
 func (c *Context) NoContent(status ...int) error {
 	var code int
 	if len(status) > 0 {
@@ -568,7 +569,7 @@ func getContentType(req *http.Request) string {
 // ContentTypeByExtension returns the MIME type associated with the file based on
 // its extension. It returns `application/octet-stream` incase MIME type is not
 // found.
-func (ctx *Context) ContentTypeByExtension(name string) (t string) {
+func (c *Context) ContentTypeByExtension(name string) (t string) {
 	ext := filepath.Ext(name)
 	//these should be found by the windows(registry) and unix(apache) but on windows some machines have problems on this part.
 	if t = mime.TypeByExtension(ext); t == "" {
@@ -616,18 +617,18 @@ func (c *Context) RequestHeader(key string) string {
 //
 // You can define your own "Content-Type" header also, after this function call
 // Doesn't implements resuming (by range), use ctx.SendFile instead
-func (ctx *Context) ServeContent(content io.ReadSeeker, filename string, modtime time.Time) error {
-	if t, err := time.Parse(TimeFormat, ctx.RequestHeader(HeaderIfModifiedSince)); err == nil && modtime.Before(t.Add(1*time.Second)) {
-		ctx.Response.Header().Del(HeaderContentType)
-		ctx.Response.Header().Del(HeaderContentLength)
-		ctx.Response.WriteHeader(StatusNotModified)
+func (c *Context) ServeContent(content io.ReadSeeker, filename string, modtime time.Time) error {
+	if t, err := time.Parse(TimeFormat, c.RequestHeader(HeaderIfModifiedSince)); err == nil && modtime.Before(t.Add(1*time.Second)) {
+		c.Response.Header().Del(HeaderContentType)
+		c.Response.Header().Del(HeaderContentLength)
+		c.Response.WriteHeader(StatusNotModified)
 		return nil
 	}
 
-	ctx.Response.Header().Set(HeaderContentType, ctx.ContentTypeByExtension(filename))
-	ctx.Response.Header().Set(HeaderLastModified, modtime.UTC().Format(TimeFormat))
-	ctx.Response.WriteHeader(StatusOK)
-	_, err := io.Copy(ctx.Response, content)
+	c.Response.Header().Set(HeaderContentType, c.ContentTypeByExtension(filename))
+	c.Response.Header().Set(HeaderLastModified, modtime.UTC().Format(TimeFormat))
+	c.Response.WriteHeader(StatusOK)
+	_, err := io.Copy(c.Response, content)
 	return err
 }
 

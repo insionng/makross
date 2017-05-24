@@ -1,20 +1,67 @@
-package static_test
+package static
 
 import (
-	"github.com/insionng/makross"
-	"github.com/insionng/makross/static"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/insionng/makross"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStatic(t *testing.T) {
-	m := makross.New()
-	m.Use(static.Static("public"))
-	go m.Listen(":8888")
+	e := makross.New()
+	req := httptest.NewRequest(makross.GET, "/", nil)
+	rec := httptest.NewRecorder()
+	c := makross.NewContext(rec, req)
+	config := StaticConfig{
+		Root: "../public",
+	}
 
-	n := makross.New()
-	n.Use(static.StaticWithConfig(static.StaticConfig{
-		Root:   "public",
-		Browse: true,
-	}))
-	go n.Listen(9999)
+	// Directory
+	h := StaticWithConfig(config)(makross.NotFoundHandler)
+	if assert.NoError(t, h(c)) {
+		assert.Contains(t, rec.Body.String(), "Echo")
+	}
+
+	// File found
+	req = httptest.NewRequest(makross.GET, "/images/walle.png", nil)
+	rec = httptest.NewRecorder()
+	c = makross.NewContext(rec, req)
+	if assert.NoError(t, h(c)) {
+		assert.Equal(t, makross.StatusOK, rec.Code)
+		assert.Equal(t, rec.Header().Get(makross.HeaderContentLength), "219885")
+	}
+
+	// File not found
+	req = httptest.NewRequest(makross.GET, "/none", nil)
+	rec = httptest.NewRecorder()
+	c = makross.NewContext(rec, req)
+	he := h(c).(*makross.HTTPError)
+	assert.Equal(t, http.StatusNotFound, he.Code)
+
+	// HTML5
+	req = httptest.NewRequest(makross.GET, "/random", nil)
+	rec = httptest.NewRecorder()
+	c = makross.NewContext(rec, req)
+	config.HTML5 = true
+	static := StaticWithConfig(config)
+	h = static(makross.NotFoundHandler)
+	if assert.NoError(t, h(c)) {
+		assert.Equal(t, makross.StatusOK, rec.Code)
+		assert.Contains(t, rec.Body.String(), "Echo")
+	}
+
+	// Browse
+	req = httptest.NewRequest(makross.GET, "/", nil)
+	rec = httptest.NewRecorder()
+	c = makross.NewContext(rec, req)
+	config.Root = "../public/certs"
+	config.Browse = true
+	static = StaticWithConfig(config)
+	h = static(makross.NotFoundHandler)
+	if assert.NoError(t, h(c)) {
+		assert.Equal(t, makross.StatusOK, rec.Code)
+		assert.Contains(t, rec.Body.String(), "cert.pem")
+	}
 }

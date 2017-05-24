@@ -7,10 +7,8 @@ import (
 	ktx "context"
 	"io"
 	"net/http"
-	"os"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +30,7 @@ type (
 		notFound         []Handler
 		notFoundHandlers []Handler
 		renderer         Renderer
-		http.Server
+		Server           *http.Server
 	}
 
 	// routeStore stores route paths and the corresponding handlers.
@@ -285,9 +283,11 @@ func StatusText(code int) string {
 // New creates a new Makross object.
 func New() *Makross {
 	m := &Makross{
+		Server:      new(http.Server),
 		namedRoutes: make(map[string]*Route),
 		stores:      make(map[string]routeStore),
 	}
+	m.Server.Handler = m
 	m.RouteGroup = *newRouteGroup("", m, make([]Handler, 0))
 	m.NotFound(MethodNotAllowedHandler, NotFoundHandler)
 	m.pool.New = func() interface{} {
@@ -522,49 +522,4 @@ func HTTPHandler(h http.Handler) Handler {
 		h.ServeHTTP(c.Response, c.Request)
 		return nil
 	}
-}
-
-func GetAddress(args ...interface{}) string {
-
-	var host string
-	var port int
-
-	if len(args) == 1 {
-		switch arg := args[0].(type) {
-		case string:
-			addrs := strings.Split(args[0].(string), ":")
-			if len(addrs) == 1 {
-				host = addrs[0]
-			} else if len(addrs) >= 2 {
-				host = addrs[0]
-				_port, _ := strconv.ParseInt(addrs[1], 10, 0)
-				port = int(_port)
-			}
-		case int:
-			port = arg
-		}
-	} else if len(args) >= 2 {
-		if arg, ok := args[0].(string); ok {
-			host = arg
-		}
-		if arg, ok := args[1].(int); ok {
-			port = arg
-		}
-	}
-
-	if host_ := os.Getenv("HOST"); len(host_) != 0 {
-		host = host_
-	} else if len(host) == 0 {
-		host = "0.0.0.0"
-	}
-
-	if port_, _ := strconv.ParseInt(os.Getenv("PORT"), 10, 32); port_ != 0 {
-		port = int(port_)
-	} else if port == 0 {
-		port = 8000
-	}
-
-	addr := host + ":" + strconv.FormatInt(int64(port), 10)
-	return addr
-
 }

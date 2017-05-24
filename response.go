@@ -21,8 +21,8 @@ type (
 )
 
 // NewResponse creates a new instance of Response.
-func NewResponse(w http.ResponseWriter, e *Makross) (r *Response) {
-	return &Response{Writer: w, makross: e}
+func NewResponse(w http.ResponseWriter, m *Makross) (r *Response) {
+	return &Response{Writer: w, makross: m}
 }
 
 // Header returns the header map for the writer that will be sent by

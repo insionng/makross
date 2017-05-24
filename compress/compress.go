@@ -1,21 +1,22 @@
 package compress
 
 import (
+	"bufio"
 	"compress/gzip"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/insionng/makross"
 	"github.com/insionng/makross/skipper"
 )
 
 type (
-	// GzipConfig defines the config for Gzip makross.
+	// GzipConfig defines the config for Gzip middleware.
 	GzipConfig struct {
-		// Skipper defines a function to skip makross.
+		// Skipper defines a function to skip middleware.
 		Skipper skipper.Skipper
 
 		// Gzip compression level.
@@ -24,26 +25,30 @@ type (
 	}
 
 	gzipResponseWriter struct {
-		http.Response
 		io.Writer
+		http.ResponseWriter
 	}
 )
 
+const (
+	gzipScheme = "gzip"
+)
+
 var (
-	// DefaultGzipConfig is the default Gzip makross config.
+	// DefaultGzipConfig is the default Gzip middleware config.
 	DefaultGzipConfig = GzipConfig{
 		Skipper: skipper.DefaultSkipper,
 		Level:   -1,
 	}
 )
 
-// Gzip returns a makross which compresses HTTP response using gzip compression
+// Gzip returns a middleware which compresses HTTP response using gzip compression
 // scheme.
 func Gzip() makross.Handler {
 	return GzipWithConfig(DefaultGzipConfig)
 }
 
-// GzipWithConfig return Gzip makross with config.
+// GzipWithConfig return Gzip middleware with config.
 // See: `Gzip()`.
 func GzipWithConfig(config GzipConfig) makross.Handler {
 	// Defaults
@@ -54,54 +59,62 @@ func GzipWithConfig(config GzipConfig) makross.Handler {
 		config.Level = DefaultGzipConfig.Level
 	}
 
-	pool := gzipPool(config)
-	scheme := "gzip"
-
-	return func(next makross.Handler) makross.Handler {
-		return func(c makross.Context) error {
-			if config.Skipper(c) {
-				return c.Next()
-			}
-
-			res := c.Response
-			res.Header().Add(makross.HeaderVary, makross.HeaderAcceptEncoding)
-			if strings.Contains(c.Request.Header.Get(makross.HeaderAcceptEncoding), scheme) {
-				rw := res.Writer()
-				gw := pool.Get().(*gzip.Writer)
-				gw.Reset(rw)
-				defer func() {
-					if res.Size() == 0 {
-						// We have to reset response to it's pristine state when
-						// nothing is written to body or error is returned.
-						// See issue #424, #407.
-						res.SetWriter(rw)
-						res.Header().Del(makross.HeaderContentEncoding)
-						gw.Reset(ioutil.Discard)
-					}
-					gw.Close()
-					pool.Put(gw)
-				}()
-				g := gzipResponseWriter{Response: res, Writer: gw}
-				res.Header().Set(makross.HeaderContentEncoding, scheme)
-				res.SetWriter(g)
-			}
+	return func(c *makross.Context) error {
+		if config.Skipper(c) {
 			return c.Next()
 		}
+
+		res := c.Response
+		res.Header().Add(makross.HeaderVary, makross.HeaderAcceptEncoding)
+		if strings.Contains(c.Request.Header.Get(makross.HeaderAcceptEncoding), gzipScheme) {
+			res.Header().Add(makross.HeaderContentEncoding, gzipScheme) // Issue #806
+			rw := res.Writer
+			w, err := gzip.NewWriterLevel(rw, config.Level)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if res.Size == 0 {
+					if res.Header().Get(makross.HeaderContentEncoding) == gzipScheme {
+						res.Header().Del(makross.HeaderContentEncoding)
+					}
+					// We have to reset response to it's pristine state when
+					// nothing is written to body or error is returned.
+					// See issue #424, #407.
+					res.Writer = rw
+					w.Reset(ioutil.Discard)
+				}
+				w.Close()
+			}()
+			grw := &gzipResponseWriter{Writer: w, ResponseWriter: rw}
+			res.Writer = grw
+		}
+		return c.Next()
 	}
 }
 
-func (g gzipResponseWriter) Write(b []byte) (int, error) {
-	if g.Header.Get(makross.HeaderContentType) == "" {
-		g.Header.Set(makross.HeaderContentType, http.DetectContentType(b))
+func (w *gzipResponseWriter) WriteHeader(code int) {
+	if code == http.StatusNoContent { // Issue #489
+		w.ResponseWriter.Header().Del(makross.HeaderContentEncoding)
 	}
-	return g.Writer.Write(b)
+	w.ResponseWriter.WriteHeader(code)
 }
 
-func gzipPool(config GzipConfig) sync.Pool {
-	return sync.Pool{
-		New: func() interface{} {
-			w, _ := gzip.NewWriterLevel(ioutil.Discard, config.Level)
-			return w
-		},
+func (w *gzipResponseWriter) Write(b []byte) (int, error) {
+	if w.Header().Get(makross.HeaderContentType) == "" {
+		w.Header().Set(makross.HeaderContentType, http.DetectContentType(b))
 	}
+	return w.Writer.Write(b)
+}
+
+func (w *gzipResponseWriter) Flush() {
+	w.Writer.(*gzip.Writer).Flush()
+}
+
+func (w *gzipResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return w.ResponseWriter.(http.Hijacker).Hijack()
+}
+
+func (w *gzipResponseWriter) CloseNotify() <-chan bool {
+	return w.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }

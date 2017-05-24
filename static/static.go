@@ -2,11 +2,13 @@ package static
 
 import (
 	"fmt"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+
 	"github.com/insionng/makross"
 	"github.com/insionng/makross/skipper"
-	"net/http"
-	"path"
-	"strings"
 )
 
 type (
@@ -54,10 +56,13 @@ func Static(root string) makross.Handler {
 // See `Static()`.
 func StaticWithConfig(config StaticConfig) makross.Handler {
 	// Defaults
+	if config.Root == "" {
+		config.Root = "." // For security we want to restrict to CWD.
+	}
 	if config.Skipper == nil {
 		config.Skipper = DefaultStaticConfig.Skipper
 	}
-	if len(config.Index) == 0 {
+	if config.Index == "" {
 		config.Index = DefaultStaticConfig.Index
 	}
 
@@ -66,81 +71,71 @@ func StaticWithConfig(config StaticConfig) makross.Handler {
 			return c.Next()
 		}
 
-		fs := http.Dir(config.Root)
 		p := c.Request.URL.Path
-		if strings.Contains(c.Request.URL.Path, "*") { // If serving from a group, e.g. `/static*`.
+		if strings.HasSuffix(c.Request.URL.Path, "*") { // When serving from a group, e.g. `/static*`.
+			//p = c.Param("*")
+			//p = c.Param("*").String()
 			p = c.Parameter(0)
+		}
+		name := filepath.Join(config.Root, path.Clean("/"+p)) // "/"+ for security
 
-		}
-		file := path.Clean(p)
-		f, err := fs.Open(file)
+		fi, err := os.Stat(name)
 		if err != nil {
-			// HTML5 mode
-			err = c.Next()
-			if herr, ok := err.(makross.HTTPError); ok {
-				if config.HTML5 && herr.StatusCode() == http.StatusNotFound {
-					file = ""
-					f, err = fs.Open(file)
-				} else {
-					return err
+			if os.IsNotExist(err) {
+				if config.HTML5 && path.Ext(p) == "" {
+					return c.ServeFile(filepath.Join(config.Root, config.Index))
 				}
-			} else {
-				return err
+				return c.Next()
 			}
-		}
-		defer f.Close()
-		fStat, err := f.Stat()
-		if err != nil {
 			return err
 		}
 
-		if fStat.IsDir() {
-			/* NOTE:
-			Not checking the Last-Modified header as it caches the response `304` when
-			changing different directories for the same path.
-			*/
-			d := f
+		if fi.IsDir() {
+			index := filepath.Join(name, config.Index)
+			fi, err = os.Stat(index)
 
-			// Index file
-			file = path.Join(file, config.Index)
-			f, err = fs.Open(file)
-			if err == nil {
-				// Index file
-				if fStat, err = f.Stat(); err != nil {
-					return err
-				}
-			} else if err != nil && config.Browse {
-				dirs, err := d.Readdir(-1)
-				if err != nil {
-					return err
-				}
+			if err != nil {
+				if config.Browse {
 
-				// Create a directory index
-				c.Response.Header().Set(makross.HeaderContentType, makross.MIMETextHTMLCharsetUTF8)
-				if _, err = fmt.Fprintf(c.Response, "<pre>\n"); err != nil {
-					return err
-				}
-				for _, d := range dirs {
-					name := d.Name()
-					color := "#212121"
-					if d.IsDir() {
-						color = "#e91e63"
-						name += "/"
-					}
-					if _, err = fmt.Fprintf(c.Response, "<a href=\"%s\" style=\"color: %s;\">%s</a>\n", name, color, name); err != nil {
+					dir, err := os.Open(name)
+					if err != nil {
 						return err
 					}
+					dirs, err := dir.Readdir(-1)
+					if err != nil {
+						return err
+					}
+
+					// Create a directory index
+					c.Response.Header().Set(makross.HeaderContentType, makross.MIMETextHTMLCharsetUTF8)
+					if _, err = fmt.Fprintf(c.Response, "<pre>\n"); err != nil {
+						return err
+					}
+					for _, d := range dirs {
+						name := d.Name()
+						color := "#212121"
+						if d.IsDir() {
+							color = "#e91e63"
+							name += "/"
+						}
+						if _, err = fmt.Fprintf(c.Response, "<a href=\"%s\" style=\"color: %s;\">%s</a>\n", name, color, name); err != nil {
+							return err
+						}
+					}
+					_, err = fmt.Fprintf(c.Response, "</pre>\n")
+					return err
+
 				}
-				_, err = fmt.Fprintf(c.Response, "</pre>\n")
+				if os.IsNotExist(err) {
+					return c.Next()
+				}
 				return err
-			} else {
-				return c.Next()
 			}
+
+			return c.ServeFile(index)
 		}
-		//err = c.ServeContent(f, fStat.Name(), fStat.ModTime())
-		http.ServeContent(c.Response, c.Request, fStat.Name(), fStat.ModTime(), f)
-		c.Abort()
-		return nil
+
+		return c.ServeFile(name)
 	}
 
 }
