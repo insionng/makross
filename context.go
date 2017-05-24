@@ -25,9 +25,10 @@ const (
 
 // Context represents the contextual data and environment while processing an incoming HTTP request.
 type Context struct {
-	Request  *http.Request       // the current request
-	Response http.ResponseWriter // the response writer
-	ktx      ktx.Context         // standard context
+	Request *http.Request // the current request
+	//Response http.ResponseWriter // the response writer
+	Response *Response
+	ktx      ktx.Context // standard context
 	makross  *Makross
 	pnames   []string               // list of route parameter names
 	pvalues  []string               // list of parameter values corresponding to pnames
@@ -38,9 +39,9 @@ type Context struct {
 }
 
 // Reset sets the request and response of the context and resets all other properties.
-func (c *Context) Reset(response http.ResponseWriter, request *http.Request) {
-	c.Response = response
-	c.Request = request
+func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
+	c.Response.reset(w)
+	c.Request = r
 	c.ktx = ktx.Background()
 	c.data = nil
 	c.index = -1
@@ -477,6 +478,7 @@ func (c *Context) Stream(contentType string, r io.Reader, status ...int) (err er
 	c.Response.Header().Set(HeaderContentType, contentType)
 	c.Response.WriteHeader(code)
 	_, err = io.Copy(c.Response, r)
+	c.Abort()
 	return
 }
 
@@ -522,6 +524,7 @@ func (c *Context) SendFile(filename string, destinationName string) error {
 
 	c.Response.Header().Set(HeaderContentDisposition, "attachment;filename="+destinationName)
 	_, err = io.Copy(c.Response, f)
+	c.Abort()
 	return err
 }
 
@@ -629,6 +632,7 @@ func (c *Context) ServeContent(content io.ReadSeeker, filename string, modtime t
 	c.Response.Header().Set(HeaderLastModified, modtime.UTC().Format(TimeFormat))
 	c.Response.WriteHeader(StatusOK)
 	_, err := io.Copy(c.Response, content)
+	c.Abort()
 	return err
 }
 

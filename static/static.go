@@ -73,9 +73,7 @@ func StaticWithConfig(config StaticConfig) makross.Handler {
 
 		p := c.Request.URL.Path
 		if strings.HasSuffix(c.Request.URL.Path, "*") { // When serving from a group, e.g. `/static*`.
-			//p = c.Param("*")
-			//p = c.Param("*").String()
-			p = c.Parameter(0)
+			p = c.Param("*").String()
 		}
 		name := filepath.Join(config.Root, path.Clean("/"+p)) // "/"+ for security
 
@@ -96,35 +94,7 @@ func StaticWithConfig(config StaticConfig) makross.Handler {
 
 			if err != nil {
 				if config.Browse {
-
-					dir, err := os.Open(name)
-					if err != nil {
-						return err
-					}
-					dirs, err := dir.Readdir(-1)
-					if err != nil {
-						return err
-					}
-
-					// Create a directory index
-					c.Response.Header().Set(makross.HeaderContentType, makross.MIMETextHTMLCharsetUTF8)
-					if _, err = fmt.Fprintf(c.Response, "<pre>\n"); err != nil {
-						return err
-					}
-					for _, d := range dirs {
-						name := d.Name()
-						color := "#212121"
-						if d.IsDir() {
-							color = "#e91e63"
-							name += "/"
-						}
-						if _, err = fmt.Fprintf(c.Response, "<a href=\"%s\" style=\"color: %s;\">%s</a>\n", name, color, name); err != nil {
-							return err
-						}
-					}
-					_, err = fmt.Fprintf(c.Response, "</pre>\n")
-					return err
-
+					return listDir(name, c.Response)
 				}
 				if os.IsNotExist(err) {
 					return c.Next()
@@ -138,4 +108,34 @@ func StaticWithConfig(config StaticConfig) makross.Handler {
 		return c.ServeFile(name)
 	}
 
+}
+
+func listDir(name string, res *makross.Response) error {
+	dir, err := os.Open(name)
+	if err != nil {
+		return err
+	}
+	dirs, err := dir.Readdir(-1)
+	if err != nil {
+		return err
+	}
+
+	// Create a directory index
+	res.Header().Set(makross.HeaderContentType, makross.MIMETextHTMLCharsetUTF8)
+	if _, err = fmt.Fprintf(res, "<pre>\n"); err != nil {
+		return err
+	}
+	for _, d := range dirs {
+		name := d.Name()
+		color := "#212121"
+		if d.IsDir() {
+			color = "#e91e63"
+			name += "/"
+		}
+		if _, err = fmt.Fprintf(res, "<a href=\"%s\" style=\"color: %s;\">%s</a>\n", name, color, name); err != nil {
+			return err
+		}
+	}
+	_, err = fmt.Fprintf(res, "</pre>\n")
+	return err
 }

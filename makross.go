@@ -291,13 +291,29 @@ func New() *Makross {
 	m.RouteGroup = *newRouteGroup("", m, make([]Handler, 0))
 	m.NotFound(MethodNotAllowedHandler, NotFoundHandler)
 	m.pool.New = func() interface{} {
-		return &Context{
-			ktx:     ktx.Background(),
-			pvalues: make([]string, m.maxParams),
-			makross: m,
-		}
+		/*
+			return &Context{
+				ktx:     ktx.Background(),
+				pvalues: make([]string, m.maxParams),
+				makross: m,
+			}
+		*/
+		return m.NewContext(nil, nil)
 	}
 	return m
+}
+
+// NewContext returns a Context instance.
+func (m *Makross) NewContext(r *http.Request, w http.ResponseWriter) *Context {
+	return &Context{
+		ktx:      ktx.Background(),
+		Request:  r,
+		Response: NewResponse(w, m),
+		data:     make(map[string]interface{}),
+		makross:  m,
+		pvalues:  make([]string, m.maxParams),
+		//handler:  NotFoundHandler,
+	}
 }
 
 // AcquireContext returns an empty `Context` instance from the pool.
@@ -502,7 +518,7 @@ func MethodNotAllowedHandler(c *Context) error {
 	sort.Strings(ms)
 	c.Response.Header().Set("Allow", strings.Join(ms, ", "))
 	if c.Request.Method != "OPTIONS" {
-		c.Response.WriteHeader(http.StatusMethodNotAllowed)
+		c.Response.WriteHeader(StatusMethodNotAllowed)
 	}
 	c.Abort()
 	return nil
