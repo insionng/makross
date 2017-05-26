@@ -131,6 +131,9 @@ func LoggerWithConfig(config LoggerConfig) makross.Handler {
 				if id == "" {
 					id = res.Header().Get(makross.HeaderXRequestID)
 				}
+				if id == "" {
+					id = "0"
+				}
 				return buf.WriteString(id)
 			case "remote_ip":
 				return buf.WriteString(c.RealIP())
