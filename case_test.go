@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/insionng/makross"
+	"github.com/insionng/makross/access"
 	"github.com/insionng/makross/content"
 	"github.com/insionng/makross/fault"
 	"github.com/insionng/makross/file"
@@ -19,6 +20,7 @@ func Case() {
 
 	m.Use(
 		// all these handlers are shared by every route
+		access.Logger(log.Printf),
 		logger.Logger(),
 		slash.Remover(http.StatusMovedPermanently),
 		fault.Recovery(log.Printf),
