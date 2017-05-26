@@ -41,7 +41,7 @@ func (r *Response) Header() http.Header {
 // used to send error codes.
 func (r *Response) WriteHeader(code int) {
 	if r.Committed {
-		log.Println("response already committed")
+		log.Println("[Makross] response already committed")
 		return
 	}
 	r.Status = code
@@ -52,7 +52,7 @@ func (r *Response) WriteHeader(code int) {
 // Write writes the data to the connection as part of an HTTP reply.
 func (r *Response) Write(b []byte) (n int, err error) {
 	if !r.Committed {
-		r.WriteHeader(http.StatusOK)
+		r.WriteHeader(StatusOK)
 	}
 	n, err = r.Writer.Write(b)
 	r.Size += int64(n)

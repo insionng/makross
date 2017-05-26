@@ -4,47 +4,47 @@ package makross
 
 import (
 	"errors"
-	"fmt"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRouterNotFound(t *testing.T) {
 	r := New()
-	h := func(c *Context) error {
-		fmt.Fprint(c.Response, "ok")
-		return nil
-	}
-	r.Get("/users", h)
-	r.Post("/users", h)
+	r.Get("/users", func(c *Context) error {
+		return c.String("ok")
+	})
+	r.Post("/users", func(c *Context) error {
+		return c.String("ok")
+	})
 	r.NotFound(MethodNotAllowedHandler, NotFoundHandler)
 
 	res := httptest.NewRecorder()
 	req, _ := http.NewRequest("PUT", "/users", nil)
 	r.ServeHTTP(res, req)
 	assert.Equal(t, "GET, OPTIONS, POST", res.Header().Get("Allow"), "Allow header")
-	assert.Equal(t, http.StatusMethodNotAllowed, res.Code, "HTTP status code")
+	assert.Equal(t, StatusMethodNotAllowed, res.Code, "HTTP status code")
 
 	res = httptest.NewRecorder()
 	req, _ = http.NewRequest("OPTIONS", "/users", nil)
 	r.ServeHTTP(res, req)
 	assert.Equal(t, "GET, OPTIONS, POST", res.Header().Get("Allow"), "Allow header")
-	assert.Equal(t, http.StatusOK, res.Code, "HTTP status code")
+	assert.Equal(t, StatusOK, res.Code, "HTTP status code")
 
 	res = httptest.NewRecorder()
 	req, _ = http.NewRequest("GET", "/posts", nil)
 	r.ServeHTTP(res, req)
 	assert.Equal(t, "", res.Header().Get("Allow"), "Allow header")
-	assert.Equal(t, http.StatusNotFound, res.Code, "HTTP status code")
+	assert.Equal(t, StatusNotFound, res.Code, "HTTP status code")
 }
 
 func TestRouterUse(t *testing.T) {
-	r := New()
-	assert.Equal(t, 2, len(r.notFoundHandlers))
-	r.Use(NotFoundHandler)
-	assert.Equal(t, 3, len(r.notFoundHandlers))
+	m := New()
+	assert.Equal(t, 2, len(m.notFoundHandlers))
+	m.Use(NotFoundHandler)
+	assert.Equal(t, 3, len(m.notFoundHandlers))
 }
 
 func TestRouterRoute(t *testing.T) {
@@ -55,10 +55,10 @@ func TestRouterRoute(t *testing.T) {
 }
 
 func TestRouterAdd(t *testing.T) {
-	r := New()
-	assert.Equal(t, 0, r.maxParams)
-	r.add("GET", "/users/<id>", nil)
-	assert.Equal(t, 1, r.maxParams)
+	m := New()
+	assert.Equal(t, 0, m.maxParams)
+	m.add("GET", "/users/<id>", nil)
+	assert.Equal(t, 1, m.maxParams)
 }
 
 func TestRouterFind(t *testing.T) {
@@ -76,29 +76,32 @@ func TestRouterFind(t *testing.T) {
 func TestRouterHandleError(t *testing.T) {
 	m := New()
 	res := httptest.NewRecorder()
-	c := &Context{Response: res}
+	c := m.NewContext(nil, res)
 	m.HandleError(c, errors.New("abc"))
-	assert.Equal(t, http.StatusInternalServerError, res.Code)
+	assert.Equal(t, StatusInternalServerError, res.Code)
 
 	res = httptest.NewRecorder()
-	c = &Context{Response: res}
+	c = m.NewContext(nil, res)
 	m.HandleError(c, NewHTTPError(http.StatusNotFound))
-	assert.Equal(t, http.StatusNotFound, res.Code)
+	assert.Equal(t, StatusNotFound, res.Code)
 }
 
 func TestHTTPHandler(t *testing.T) {
 	res := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/users/", nil)
-	c := NewContext(res, req)
+
+	m := New()
+	c := m.NewContext(req, res)
 
 	h1 := HTTPHandlerFunc(http.NotFound)
 	assert.Nil(t, h1(c))
-	assert.Equal(t, http.StatusNotFound, res.Code)
+	assert.Equal(t, StatusNotFound, res.Code)
 
 	res = httptest.NewRecorder()
 	req, _ = http.NewRequest("GET", "/users/", nil)
-	c = NewContext(res, req)
+
+	c = m.NewContext(req, res)
 	h2 := HTTPHandler(http.NotFoundHandler())
 	assert.Nil(t, h2(c))
-	assert.Equal(t, http.StatusNotFound, res.Code)
+	assert.Equal(t, StatusNotFound, res.Code)
 }

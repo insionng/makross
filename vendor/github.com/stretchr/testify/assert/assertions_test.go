@@ -254,8 +254,8 @@ func TestEqualFormatting(t *testing.T) {
 		msgAndArgs []interface{}
 		want       string
 	}{
-		{equalWant: "want", equalGot: "got", want: "\tassertions.go:[0-9]+: \r                          \r\tError Trace:\t\n\t\t\r\tError:      \tNot equal: \n\t\t\r\t            \texpected: \"want\"\n\t\t\r\t            \treceived: \"got\"\n"},
-		{equalWant: "want", equalGot: "got", msgAndArgs: []interface{}{"hello, %v!", "world"}, want: "\tassertions.go:[0-9]+: \r                          \r\tError Trace:\t\n\t\t\r\tError:      \tNot equal: \n\t\t\r\t            \texpected: \"want\"\n\t\t\r\t            \treceived: \"got\"\n\t\t\r\tMessages:   \thello, world!\n"},
+		{equalWant: "want", equalGot: "got", want: "\tassertions.go:[0-9]+: \r                          \r\tError Trace:\t\n\t\t\r\tError:      \tNot equal: \n\t\t\r\t            \texpected: \"want\"\n\t\t\r\t            \tactual: \"got\"\n"},
+		{equalWant: "want", equalGot: "got", msgAndArgs: []interface{}{"hello, %v!", "world"}, want: "\tassertions.go:[0-9]+: \r                          \r\tError Trace:\t\n\t\t\r\tError:      \tNot equal: \n\t\t\r\t            \texpected: \"want\"\n\t\t\r\t            \tactual: \"got\"\n\t\t\r\tMessages:   \thello, world!\n"},
 	} {
 		mockT := &bufferT{}
 		Equal(mockT, currCase.equalWant, currCase.equalGot, currCase.msgAndArgs...)
@@ -630,7 +630,7 @@ func TestNoError(t *testing.T) {
 	}()
 
 	if err == nil { // err is not nil here!
-		t.Errorf("Error should be nil due to empty interface", err)
+		t.Error("Error should be nil due to empty interface", err)
 	}
 
 	False(t, NoError(mockT, err), "NoError should fail with empty error interface")
@@ -664,7 +664,7 @@ func TestError(t *testing.T) {
 	}()
 
 	if err == nil { // err is not nil here!
-		t.Errorf("Error should be nil due to empty interface", err)
+		t.Error("Error should be nil due to empty interface", err)
 	}
 
 	True(t, Error(mockT, err), "Error should pass with empty error interface")
@@ -1282,4 +1282,33 @@ func TestFailNowWithFullTestingT(t *testing.T) {
 	NotPanics(t, func() {
 		FailNow(mockT, "failed")
 	}, "should call mockT.FailNow() rather than panicking")
+}
+
+func TestBytesEqual(t *testing.T) {
+	var cases = []struct {
+		a, b []byte
+	}{
+		{make([]byte, 2), make([]byte, 2)},
+		{make([]byte, 2), make([]byte, 2, 3)},
+		{nil, make([]byte, 0)},
+	}
+	for i, c := range cases {
+		Equal(t, reflect.DeepEqual(c.a, c.b), ObjectsAreEqual(c.a, c.b), "case %d failed", i+1)
+	}
+}
+
+func BenchmarkBytesEqual(b *testing.B) {
+	const size = 1024 * 8
+	s := make([]byte, size)
+	for i := range s {
+		s[i] = byte(i % 255)
+	}
+	s2 := make([]byte, size)
+	copy(s2, s)
+
+	mockT := &mockFailNowTestingT{}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		Equal(mockT, s, s2)
+	}
 }

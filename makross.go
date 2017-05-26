@@ -4,7 +4,6 @@ package makross
 
 import (
 	"context"
-	ktx "context"
 	"io"
 	"net/http"
 	"path"
@@ -118,6 +117,7 @@ const (
 	HeaderXHTTPMethodOverride           = "X-HTTP-Method-Override"
 	HeaderXForwardedFor                 = "X-Forwarded-For"
 	HeaderXRealIP                       = "X-Real-IP"
+	HeaderXRequestID                    = "X-Request-ID"
 	HeaderServer                        = "Server"
 	HeaderOrigin                        = "Origin"
 	HeaderAccessControlRequestMethod    = "Access-Control-Request-Method"
@@ -281,8 +281,8 @@ func StatusText(code int) string {
 }
 
 // New creates a new Makross object.
-func New() *Makross {
-	m := &Makross{
+func New() (m *Makross) {
+	m = &Makross{
 		Server:      new(http.Server),
 		namedRoutes: make(map[string]*Route),
 		stores:      make(map[string]routeStore),
@@ -291,29 +291,22 @@ func New() *Makross {
 	m.RouteGroup = *newRouteGroup("", m, make([]Handler, 0))
 	m.NotFound(MethodNotAllowedHandler, NotFoundHandler)
 	m.pool.New = func() interface{} {
-		/*
-			return &Context{
-				ktx:     ktx.Background(),
-				pvalues: make([]string, m.maxParams),
-				makross: m,
-			}
-		*/
 		return m.NewContext(nil, nil)
 	}
 	return m
 }
 
 // NewContext returns a Context instance.
-func (m *Makross) NewContext(r *http.Request, w http.ResponseWriter) *Context {
-	return &Context{
-		ktx:      ktx.Background(),
+func (m *Makross) NewContext(r *http.Request, w http.ResponseWriter, handlers ...Handler) *Context {
+	c := &Context{
 		Request:  r,
 		Response: NewResponse(w, m),
-		data:     make(map[string]interface{}),
 		makross:  m,
 		pvalues:  make([]string, m.maxParams),
-		//handler:  NotFoundHandler,
+		handlers: handlers,
 	}
+	c.Reset(w, r)
+	return c
 }
 
 // AcquireContext returns an empty `Context` instance from the pool.

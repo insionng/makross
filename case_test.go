@@ -3,22 +3,23 @@
 package makross_test
 
 import (
+	"log"
+	"net/http"
+
 	"github.com/insionng/makross"
-	"github.com/insionng/makross/access"
 	"github.com/insionng/makross/content"
 	"github.com/insionng/makross/fault"
 	"github.com/insionng/makross/file"
+	"github.com/insionng/makross/logger"
 	"github.com/insionng/makross/slash"
-	"log"
-	"net/http"
 )
 
-func Example() {
+func Case() {
 	m := makross.New()
 
 	m.Use(
 		// all these handlers are shared by every route
-		access.Logger(log.Printf),
+		logger.Logger(),
 		slash.Remover(http.StatusMovedPermanently),
 		fault.Recovery(log.Printf),
 	)

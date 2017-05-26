@@ -5,13 +5,13 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/insionng/makross"
 	"github.com/insionng/makross/libraries/gommon/color"
 	"github.com/insionng/makross/skipper"
-	isatty "github.com/mattn/go-isatty"
 	"github.com/valyala/fasttemplate"
 )
 
@@ -21,10 +21,13 @@ type (
 		// Skipper defines a function to skip middleware.
 		Skipper skipper.Skipper
 
-		// Log format which can be constructed using the following tags:
+		// Tags to constructed the logger format.
 		//
+		// - time_unix
+		// - time_unix_nano
 		// - time_rfc3339
-		// - id (Request ID - Not implemented)
+		// - time_rfc3339_nano
+		// - id (Request ID)
 		// - remote_ip
 		// - uri
 		// - host
@@ -33,23 +36,26 @@ type (
 		// - referer
 		// - user_agent
 		// - status
-		// - latency (In microseconds)
+		// - latency (In nanoseconds)
 		// - latency_human (Human readable)
 		// - bytes_in (Bytes received)
 		// - bytes_out (Bytes sent)
+		// - header:<NAME>
+		// - query:<NAME>
+		// - form:<NAME>
 		//
 		// Example "${remote_ip} ${status}"
 		//
 		// Optional. Default value DefaultLoggerConfig.Format.
 		Format string `json:"format"`
 
-		// Output is a writer where logs are written.
+		// Output is a writer where logs in JSON format are written.
 		// Optional. Default value os.Stdout.
 		Output io.Writer
 
-		template   *fasttemplate.Template
-		color      *color.Color
-		bufferPool sync.Pool
+		template *fasttemplate.Template
+		colorer  *color.Color
+		pool     *sync.Pool
 	}
 )
 
@@ -57,12 +63,12 @@ var (
 	// DefaultLoggerConfig is the default Logger middleware config.
 	DefaultLoggerConfig = LoggerConfig{
 		Skipper: skipper.DefaultSkipper,
-		Format: `{"time":"${time_rfc3339}","remote_ip":"${remote_ip}",` +
+		Format: `{"time":"${time_rfc3339_nano}","id":"${id}","remote_ip":"${remote_ip}","host":"${host}",` +
 			`"method":"${method}","uri":"${uri}","status":${status}, "latency":${latency},` +
 			`"latency_human":"${latency_human}","bytes_in":${bytes_in},` +
 			`"bytes_out":${bytes_out}}` + "\n",
-		Output: os.Stdout,
-		color:  color.New(),
+		Output:  os.Stdout,
+		colorer: color.New(),
 	}
 )
 
@@ -86,11 +92,9 @@ func LoggerWithConfig(config LoggerConfig) makross.Handler {
 	}
 
 	config.template = fasttemplate.New(config.Format, "${", "}")
-	config.color = color.New()
-	if w, ok := config.Output.(*os.File); !ok || !isatty.IsTerminal(w.Fd()) {
-		config.color.Disable()
-	}
-	config.bufferPool = sync.Pool{
+	config.colorer = color.New()
+	config.colorer.SetOutput(config.Output)
+	config.pool = &sync.Pool{
 		New: func() interface{} {
 			return bytes.NewBuffer(make([]byte, 256))
 		},
@@ -102,74 +106,96 @@ func LoggerWithConfig(config LoggerConfig) makross.Handler {
 		}
 
 		req := c.Request
+		res := c.Response
 		start := time.Now()
 		if err = c.Next(); err != nil {
-			if herr, okay := err.(makross.HTTPError); okay {
-				c.Error(herr.StatusCode(), herr.Error())
-			}
+			c.HandleError(err)
 		}
 		stop := time.Now()
-		buf := config.bufferPool.Get().(*bytes.Buffer)
+		buf := config.pool.Get().(*bytes.Buffer)
 		buf.Reset()
-		defer config.bufferPool.Put(buf)
+		defer config.pool.Put(buf)
 
-		_, err = config.template.ExecuteFunc(buf, func(w io.Writer, tag string) (int, error) {
+		if _, err = config.template.ExecuteFunc(buf, func(w io.Writer, tag string) (int, error) {
 			switch tag {
+			case "time_unix":
+				return buf.WriteString(strconv.FormatInt(time.Now().Unix(), 10))
+			case "time_unix_nano":
+				return buf.WriteString(strconv.FormatInt(time.Now().UnixNano(), 10))
 			case "time_rfc3339":
-				return w.Write([]byte(time.Now().Format(time.RFC3339)))
+				return buf.WriteString(time.Now().Format(time.RFC3339))
+			case "time_rfc3339_nano":
+				return buf.WriteString(time.Now().Format(time.RFC3339Nano))
+			case "id":
+				id := req.Header.Get(makross.HeaderXRequestID)
+				if id == "" {
+					id = res.Header().Get(makross.HeaderXRequestID)
+				}
+				return buf.WriteString(id)
 			case "remote_ip":
-				ra := c.RealIP()
-				return w.Write([]byte(ra))
+				return buf.WriteString(c.RealIP())
 			case "host":
-				return w.Write([]byte(req.Host))
+				return buf.WriteString(req.Host)
 			case "uri":
-				return w.Write([]byte(req.RequestURI))
+				return buf.WriteString(req.RequestURI)
 			case "method":
-				return w.Write([]byte(req.Method))
+				return buf.WriteString(req.Method)
 			case "path":
-				p := c.Request.URL.Path
+				p := req.URL.Path
 				if p == "" {
 					p = "/"
 				}
-				return w.Write([]byte(p))
+				return buf.WriteString(p)
 			case "referer":
-				return w.Write([]byte(req.Referer()))
+				return buf.WriteString(req.Referer())
 			case "user_agent":
-				return w.Write([]byte(req.UserAgent()))
+				return buf.WriteString(req.UserAgent())
 			case "status":
-				/*
-					n, _ := config.Output.Write(buf.Bytes())
-					s := config.color.Green(n)
-					switch {
-					case n >= 500:
-						s = config.color.Red(n)
-					case n >= 400:
-						s = config.color.Yellow(n)
-					case n >= 300:
-						s = config.color.Cyan(n)
-					}
-					return w.Write([]byte(s))
-				*/
-				return w.Write([]byte("000"))
-			case "latency":
-				l := stop.Sub(start).Nanoseconds() / 1000
-				return w.Write([]byte(strconv.FormatInt(l, 10)))
-			case "latency_human":
-				return w.Write([]byte(stop.Sub(start).String()))
-			case "bytes_in":
-				b := req.Header.Get(makross.HeaderContentLength)
-				if b == "" {
-					b = "0"
+				n := res.Status
+				s := config.colorer.Green(n)
+				switch {
+				case n >= 500:
+					s = config.colorer.Red(n)
+				case n >= 400:
+					s = config.colorer.Yellow(n)
+				case n >= 300:
+					s = config.colorer.Cyan(n)
 				}
-				return w.Write([]byte(b))
+				return buf.WriteString(s)
+			case "latency":
+				l := stop.Sub(start)
+				return buf.WriteString(strconv.FormatInt(int64(l), 10))
+			case "latency_human":
+				return buf.WriteString(stop.Sub(start).String())
+			case "bytes_in":
+				cl := req.Header.Get(makross.HeaderContentLength)
+				if cl == "" {
+					cl = "0"
+				}
+				return buf.WriteString(cl)
 			case "bytes_out":
-				return w.Write([]byte(strconv.FormatInt(int64(len(buf.Bytes())), 10)))
+				return buf.WriteString(strconv.FormatInt(res.Size, 10))
+			default:
+				switch {
+				case strings.HasPrefix(tag, "header:"):
+					return buf.Write([]byte(c.Request.Header.Get(tag[7:])))
+				case strings.HasPrefix(tag, "query:"):
+					return buf.Write([]byte(c.Query(tag[6:])))
+				case strings.HasPrefix(tag, "form:"):
+					return buf.Write([]byte(c.Form(tag[5:])))
+				case strings.HasPrefix(tag, "cookie:"):
+					cookie, err := c.GetCookie(tag[7:])
+					if err == nil {
+						return buf.Write([]byte(cookie.Value))
+					}
+				}
 			}
 			return 0, nil
-		})
-		if err == nil {
-			config.Output.Write(buf.Bytes())
+		}); err != nil {
+			return
 		}
+
+		_, err = config.Output.Write(buf.Bytes())
 		return
 	}
 }

@@ -80,7 +80,8 @@ func TestDefaultDataReader(t *testing.T) {
 		var data FA
 		req, _ := http.NewRequest(test.method, test.URL, bytes.NewBufferString(test.body))
 		req.Header.Set("Content-Type", test.header)
-		c := NewContext(nil, req)
+		m := New()
+		c := m.NewContext(req, nil)
 		err := c.Read(&data)
 		assert.Nil(t, err, test.tag)
 		assert.Equal(t, expected, data, test.tag)

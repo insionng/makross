@@ -14,7 +14,8 @@ import (
 )
 
 func TestContextParam(t *testing.T) {
-	c := NewContext(nil, nil)
+	m := New()
+	c := m.NewContext(nil, nil)
 	values := []string{"a", "b", "c", "d"}
 
 	c.pvalues = values
@@ -30,8 +31,9 @@ func TestContextParam(t *testing.T) {
 }
 
 func TestContextInit(t *testing.T) {
-	c := NewContext(nil, nil)
-	assert.Nil(t, c.Response)
+	m := New()
+	c := m.NewContext(nil, nil)
+	assert.NotNil(t, c.Response)
 	assert.Nil(t, c.Request)
 	assert.Equal(t, 0, len(c.handlers))
 	req, _ := http.NewRequest("GET", "/users/", nil)
@@ -51,7 +53,8 @@ func TestContextURL(t *testing.T) {
 }
 
 func TestContextGetSet(t *testing.T) {
-	c := NewContext(nil, nil)
+	m := New()
+	c := m.NewContext(nil, nil)
 	c.Reset(nil, nil)
 	assert.Nil(t, c.Get("abc"))
 	c.Set("abc", "123")
@@ -64,7 +67,8 @@ func TestContextQueryForm(t *testing.T) {
 	req, _ := http.NewRequest("POST", "http://www.google.com/search?q=foo&q=bar&both=x&prio=1&empty=not",
 		strings.NewReader("z=post&both=y&prio=2&empty="))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
-	c := NewContext(nil, req)
+	m := New()
+	c := m.NewContext(req, nil)
 	assert.Equal(t, "foo", c.Query("q"))
 	assert.Equal(t, "", c.Query("z"))
 	assert.Equal(t, "123", c.Query("z", "123"))
@@ -118,9 +122,11 @@ func TestContextNextAbort(t *testing.T) {
 func testNewContext(handlers ...Handler) (*Context, *httptest.ResponseRecorder) {
 	res := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "http://127.0.0.1/users", nil)
-	c := &Context{}
-	c.Reset(res, req)
-	c.handlers = handlers
+	m := New()
+	c := m.NewContext(req, res, handlers...)
+	//c := NewContext(res, req, handlers...) // &Context{}
+	//c.Reset(res, req)
+	//c.handlers = handlers
 	return c, res
 }
 

@@ -25,10 +25,9 @@ const (
 
 // Context represents the contextual data and environment while processing an incoming HTTP request.
 type Context struct {
-	Request *http.Request // the current request
-	//Response http.ResponseWriter // the response writer
-	Response *Response
-	ktx      ktx.Context // standard context
+	Request  *http.Request // the current request
+	Response *Response     // the response writer
+	ktx      ktx.Context   // standard context
 	makross  *Makross
 	pnames   []string               // list of route parameter names
 	pvalues  []string               // list of parameter values corresponding to pnames
@@ -50,11 +49,22 @@ func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 
 // NewContext creates a new Context object with the given response, request, and the handlers.
 // This method is primarily provided for writing unit tests for handlers.
-func NewContext(res http.ResponseWriter, req *http.Request, handlers ...Handler) *Context {
-	c := &Context{handlers: handlers}
-	c.Reset(res, req)
+/*
+func NewContext(w http.ResponseWriter, r *http.Request, handlers ...Handler) *Context {
+	//c := &Context{handlers: handlers}
+	m := New()
+	c := &Context{
+		Request:  r,
+		Response: NewResponse(w, m),
+		makross:  m,
+		pvalues:  make([]string, m.maxParams),
+		handlers: handlers,
+	}
+
+	c.Reset(w, r)
 	return c
 }
+*/
 
 // Makross returns the Makross that is handling the incoming HTTP request.
 func (c *Context) Makross() *Makross {
