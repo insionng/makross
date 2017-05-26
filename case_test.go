@@ -4,7 +4,6 @@ package makross_test
 
 import (
 	"log"
-	"net/http"
 
 	"github.com/insionng/makross"
 	"github.com/insionng/makross/access"
@@ -22,7 +21,7 @@ func Case() {
 		// all these handlers are shared by every route
 		access.Logger(log.Printf),
 		logger.Logger(),
-		slash.Remover(http.StatusMovedPermanently),
+		slash.RemoveTrailingSlash(),
 		fault.Recovery(log.Printf),
 	)
 

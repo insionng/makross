@@ -3,12 +3,13 @@
 package file
 
 import (
-	"github.com/insionng/makross"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/insionng/makross"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParsePathMap(t *testing.T) {
@@ -68,7 +69,8 @@ func TestContent(t *testing.T) {
 	h := Content("testdata/index.html")
 	req, _ := http.NewRequest("GET", "/index.html", nil)
 	res := httptest.NewRecorder()
-	c := makross.NewContext(res, req)
+	m := makross.New()
+	c := m.NewContext(req, res)
 	err := h(c)
 	assert.Nil(t, err)
 	assert.Equal(t, "hello", res.Body.String())
@@ -76,7 +78,7 @@ func TestContent(t *testing.T) {
 	h = Content("testdata/index.html")
 	req, _ = http.NewRequest("POST", "/index.html", nil)
 	res = httptest.NewRecorder()
-	c = makross.NewContext(res, req)
+	c = m.NewContext(req, res)
 	err = h(c)
 	if assert.NotNil(t, err) {
 		assert.Equal(t, http.StatusMethodNotAllowed, err.(makross.HTTPError).StatusCode())
@@ -85,7 +87,7 @@ func TestContent(t *testing.T) {
 	h = Content("testdata/index.go")
 	req, _ = http.NewRequest("GET", "/index.html", nil)
 	res = httptest.NewRecorder()
-	c = makross.NewContext(res, req)
+	c = m.NewContext(req, res)
 	err = h(c)
 	if assert.NotNil(t, err) {
 		assert.Equal(t, http.StatusNotFound, err.(makross.HTTPError).StatusCode())
@@ -94,7 +96,7 @@ func TestContent(t *testing.T) {
 	h = Content("testdata/css")
 	req, _ = http.NewRequest("GET", "/index.html", nil)
 	res = httptest.NewRecorder()
-	c = makross.NewContext(res, req)
+	c = m.NewContext(req, res)
 	err = h(c)
 	if assert.NotNil(t, err) {
 		assert.Equal(t, http.StatusNotFound, err.(makross.HTTPError).StatusCode())
@@ -119,7 +121,8 @@ func TestServer(t *testing.T) {
 	for _, test := range tests {
 		req, _ := http.NewRequest(test.method, test.url, nil)
 		res := httptest.NewRecorder()
-		c := makross.NewContext(res, req)
+		m := makross.New()
+		c := m.NewContext(req, res)
 		err := h1(c)
 		if test.status == 0 {
 			assert.Nil(t, err, test.id)
@@ -140,13 +143,14 @@ func TestServer(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "/css/main.css", nil)
 	res := httptest.NewRecorder()
-	c := makross.NewContext(res, req)
+	m := makross.New()
+	c := m.NewContext(req, res)
 	err := h2(c)
 	assert.NotNil(t, err)
 
 	req, _ = http.NewRequest("GET", "/css", nil)
 	res = httptest.NewRecorder()
-	c = makross.NewContext(res, req)
+	c = m.NewContext(req, res)
 	err = h2(c)
 	assert.Nil(t, err)
 	assert.Equal(t, "css.html", res.Body.String())
@@ -163,20 +167,21 @@ func TestServer(t *testing.T) {
 
 		req, _ := http.NewRequest("GET", "/css/main.css", nil)
 		res := httptest.NewRecorder()
-		c := makross.NewContext(res, req)
+		m := makross.New()
+		c := m.NewContext(req, res)
 		err := h3(c)
 		assert.NotNil(t, err)
 
 		req, _ = http.NewRequest("GET", "/css", nil)
 		res = httptest.NewRecorder()
-		c = makross.NewContext(res, req)
+		c = m.NewContext(req, res)
 		err = h3(c)
 		assert.Nil(t, err)
 		assert.Equal(t, "css.html", res.Body.String())
 
 		req, _ = http.NewRequest("GET", "/css2", nil)
 		res = httptest.NewRecorder()
-		c = makross.NewContext(res, req)
+		c = m.NewContext(req, res)
 		err = h3(c)
 		assert.Nil(t, err)
 		assert.Equal(t, "hello", res.Body.String())

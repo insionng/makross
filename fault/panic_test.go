@@ -18,7 +18,8 @@ func TestPanicHandler(t *testing.T) {
 
 	res := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/users/", nil)
-	c := makross.NewContext(res, req, h, handler3, handler2)
+	m := makross.New()
+	c := m.NewContext(req, res, h, handler3, handler2)
 	err := c.Next()
 	if assert.NotNil(t, err) {
 		assert.Equal(t, "xyz", err.Error())
@@ -28,7 +29,7 @@ func TestPanicHandler(t *testing.T) {
 	buf.Reset()
 	res = httptest.NewRecorder()
 	req, _ = http.NewRequest("GET", "/users/", nil)
-	c = makross.NewContext(res, req, h, handler2)
+	c = m.NewContext(req, res, h, handler2)
 	assert.Nil(t, c.Next())
 	assert.Equal(t, "", buf.String())
 
@@ -36,7 +37,7 @@ func TestPanicHandler(t *testing.T) {
 	h2 := ErrorHandler(getLogger(&buf))
 	res = httptest.NewRecorder()
 	req, _ = http.NewRequest("GET", "/users/", nil)
-	c = makross.NewContext(res, req, h2, h, handler3, handler2)
+	c = m.NewContext(req, res, h2, h, handler3, handler2)
 	assert.Nil(t, c.Next())
 	assert.Equal(t, http.StatusInternalServerError, res.Code)
 	assert.Equal(t, "xyz\n", res.Body.String())

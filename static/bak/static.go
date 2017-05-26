@@ -73,8 +73,7 @@ func StaticWithConfig(config StaticConfig) makross.Handler {
 
 		p := c.Request.URL.Path
 		if strings.HasSuffix(c.Request.URL.Path, "*") { // When serving from a group, e.g. `/static*`.
-			//p = c.Param("*").String()
-			p = c.Parameter(0)
+			p = c.Param("*").String()
 		}
 		name := filepath.Join(config.Root, path.Clean("/"+p)) // "/"+ for security
 

@@ -199,6 +199,10 @@ func (c *Context) PushStore(data map[string]interface{}) {
 	}
 }
 
+func (c *Context) QueryString() string {
+	return c.Request.URL.RawQuery
+}
+
 // Query returns the first value for the named component of the URL query parameters.
 // If key is not present, it returns the specified default value or an empty string.
 func (c *Context) Query(name string, defaultValue ...string) string {
@@ -309,6 +313,22 @@ func (c *Context) Read(data interface{}) error {
 // By default, the DefaultDataWriter will be used.
 func (c *Context) Write(data interface{}) error {
 	return c.writer.Write(c.Response, data)
+}
+
+func (c *Context) Redirect(url string, status ...int) error {
+	var code int
+	if len(status) > 0 {
+		code = status[0]
+	} else {
+		code = StatusFound
+	}
+	if code < StatusMultipleChoices || code > StatusPermanentRedirect {
+		return ErrInvalidRedirectCode
+	}
+
+	c.Response.Header().Set(HeaderLocation, url)
+	c.Response.WriteHeader(code)
+	return nil
 }
 
 func (c *Context) Render(name string, status ...int) (err error) {
@@ -519,7 +539,8 @@ func (c *Context) ServeFile(file string) (err error) {
 		}
 		fi, _ = f.Stat()
 	}
-	return c.ServeContent(f, fi.Name(), fi.ModTime())
+	http.ServeContent(c.Response, c.Request, fi.Name(), fi.ModTime(), f)
+	return c.Abort() //c.ServeContent(f, fi.Name(), fi.ModTime())
 }
 
 // SendFile sends file for force-download to the client
@@ -640,6 +661,20 @@ func (c *Context) ServeContent(content io.ReadSeeker, filename string, modtime t
 
 	c.Response.Header().Set(HeaderContentType, c.ContentTypeByExtension(filename))
 	c.Response.Header().Set(HeaderLastModified, modtime.UTC().Format(TimeFormat))
+
+	size := func() int64 {
+		size, err := content.Seek(0, io.SeekEnd)
+		if err != nil {
+			return 0
+		}
+		_, err = content.Seek(0, io.SeekStart)
+		if err != nil {
+			return 0
+		}
+		return size
+	}()
+
+	c.Response.Header().Set(HeaderContentLength, fmt.Sprintf("%v", size))
 	c.Response.WriteHeader(StatusOK)
 	_, err := io.Copy(c.Response, content)
 	c.Abort()
@@ -648,5 +683,14 @@ func (c *Context) ServeContent(content io.ReadSeeker, filename string, modtime t
 
 // IsTLS implements `Context#TLS` function.
 func (c *Context) IsTLS() bool {
-	return false
+	return c.Request.TLS != nil
+}
+
+func (c *Context) Scheme() string {
+	// Can't use `r.Request.URL.Scheme`
+	// See: https://groups.google.com/forum/#!topic/golang-nuts/pMUkBlQBDF0
+	if c.IsTLS() {
+		return "https"
+	}
+	return "http"
 }

@@ -4,7 +4,6 @@ import (
 	"github.com/insionng/makross"
 	"github.com/insionng/makross/skipper"
 	"github.com/insionng/makross/slash"
-	"net/http"
 )
 
 type (
@@ -19,23 +18,27 @@ type (
 	}
 )
 
+const (
+	www = "www"
+)
+
 var (
 	// DefaultRedirectConfig is the default Redirect middleware config.
 	DefaultRedirectConfig = RedirectConfig{
 		Skipper: skipper.DefaultSkipper,
-		Code:    http.StatusMovedPermanently,
+		Code:    makross.StatusMovedPermanently,
 	}
 )
 
-// HTTPSRedirect redirects HTTP requests to HTTPS.
-// For example, http://insionng.com will be redirect to https://insionng.com.
+// HTTPSRedirect redirects http requests to https.
+// For example, http://labstack.com will be redirect to https://labstack.com.
 //
-// Usage `Vodka#Pre(HTTPSRedirect())`
+// Usage `makross#Pre(HTTPSRedirect())`
 func HTTPSRedirect() makross.Handler {
 	return HTTPSRedirectWithConfig(DefaultRedirectConfig)
 }
 
-// HTTPSRedirectWithConfig returns a HTTPSRedirect middleware with config.
+// HTTPSRedirectWithConfig returns an HTTPSRedirect middleware with config.
 // See `HTTPSRedirect()`.
 func HTTPSRedirectWithConfig(config RedirectConfig) makross.Handler {
 	// Defaults
@@ -52,25 +55,24 @@ func HTTPSRedirectWithConfig(config RedirectConfig) makross.Handler {
 		}
 
 		req := c.Request
-		host := string(req.Host())
-		uri := req.URI()
-		if !c.RequestCtx.IsTLS() {
-			c.Redirect("https://"+host+uri.String(), config.Code)
-			return nil
+		host := req.Host
+		uri := req.RequestURI
+		if !c.IsTLS() {
+			return c.Redirect("https://"+host+uri, config.Code)
 		}
 		return c.Next()
 	}
 }
 
-// HTTPSWWWRedirect redirects HTTP requests to WWW HTTPS.
-// For example, http://insionng.com will be redirect to https://www.insionng.com.
+// HTTPSWWWRedirect redirects http requests to https www.
+// For example, http://labstack.com will be redirect to https://www.labstack.com.
 //
-// Usage `Vodka#Pre(HTTPSWWWRedirect())`
+// Usage `makross#Pre(HTTPSWWWRedirect())`
 func HTTPSWWWRedirect() makross.Handler {
 	return HTTPSWWWRedirectWithConfig(DefaultRedirectConfig)
 }
 
-// HTTPSWWWRedirectWithConfig returns a HTTPSRedirect middleware with config.
+// HTTPSWWWRedirectWithConfig returns an HTTPSRedirect middleware with config.
 // See `HTTPSWWWRedirect()`.
 func HTTPSWWWRedirectWithConfig(config RedirectConfig) makross.Handler {
 	// Defaults
@@ -87,25 +89,63 @@ func HTTPSWWWRedirectWithConfig(config RedirectConfig) makross.Handler {
 		}
 
 		req := c.Request
-		host := string(req.Host())
-		uri := req.URI()
-		if !c.RequestCtx.IsTLS() && host[:3] != "www" {
-			c.Redirect("https://www."+host+uri.String(), http.StatusMovedPermanently)
-			return nil
+		host := req.Host
+		uri := req.RequestURI
+		if !c.IsTLS() && host[:3] != www {
+			return c.Redirect("https://www."+host+uri, config.Code)
 		}
 		return c.Next()
 	}
+
 }
 
-// WWWRedirect redirects non WWW requests to WWW.
-// For example, http://insionng.com will be redirect to http://www.insionng.com.
+// HTTPSNonWWWRedirect redirects http requests to https non www.
+// For example, http://www.labstack.com will be redirect to https://labstack.com.
 //
-// Usage `Vodka#Pre(WWWRedirect())`
+// Usage `makross#Pre(HTTPSNonWWWRedirect())`
+func HTTPSNonWWWRedirect() makross.Handler {
+	return HTTPSNonWWWRedirectWithConfig(DefaultRedirectConfig)
+}
+
+// HTTPSNonWWWRedirectWithConfig returns an HTTPSRedirect middleware with config.
+// See `HTTPSNonWWWRedirect()`.
+func HTTPSNonWWWRedirectWithConfig(config RedirectConfig) makross.Handler {
+	// Defaults
+	if config.Skipper == nil {
+		config.Skipper = slash.DefaultTrailingSlashConfig.Skipper
+	}
+	if config.Code == 0 {
+		config.Code = DefaultRedirectConfig.Code
+	}
+
+	return func(c *makross.Context) error {
+		if config.Skipper(c) {
+			return c.Next()
+		}
+
+		req := c.Request
+		host := req.Host
+		uri := req.RequestURI
+		if !c.IsTLS() {
+			if host[:3] == www {
+				return c.Redirect("https://"+host[4:]+uri, config.Code)
+			}
+			return c.Redirect("https://"+host+uri, config.Code)
+		}
+		return c.Next()
+	}
+
+}
+
+// WWWRedirect redirects non www requests to www.
+// For example, http://labstack.com will be redirect to http://www.labstack.com.
+//
+// Usage `makross#Pre(WWWRedirect())`
 func WWWRedirect() makross.Handler {
 	return WWWRedirectWithConfig(DefaultRedirectConfig)
 }
 
-// WWWRedirectWithConfig returns a HTTPSRedirect middleware with config.
+// WWWRedirectWithConfig returns an HTTPSRedirect middleware with config.
 // See `WWWRedirect()`.
 func WWWRedirectWithConfig(config RedirectConfig) makross.Handler {
 	// Defaults
@@ -122,26 +162,26 @@ func WWWRedirectWithConfig(config RedirectConfig) makross.Handler {
 		}
 
 		req := c.Request
-		scheme := string(req.URI().Scheme())
-		host := string(req.Host())
-		if host[:3] != "www" {
-			uri := req.URI()
-			c.Redirect(scheme+"://www."+host+uri.String(), http.StatusMovedPermanently)
-			return nil
+		scheme := c.Scheme()
+		host := req.Host
+		if host[:3] != www {
+			uri := req.RequestURI
+			return c.Redirect(scheme+"://www."+host+uri, config.Code)
 		}
 		return c.Next()
 	}
+
 }
 
-// NonWWWRedirect redirects WWW requests to non WWW.
-// For example, http://www.insionng.com will be redirect to http://insionng.com.
+// NonWWWRedirect redirects www requests to non www.
+// For example, http://www.labstack.com will be redirect to http://labstack.com.
 //
-// Usage `Vodka#Pre(NonWWWRedirect())`
+// Usage `makross#Pre(NonWWWRedirect())`
 func NonWWWRedirect() makross.Handler {
 	return NonWWWRedirectWithConfig(DefaultRedirectConfig)
 }
 
-// NonWWWRedirectWithConfig returns a HTTPSRedirect middleware with config.
+// NonWWWRedirectWithConfig returns an HTTPSRedirect middleware with config.
 // See `NonWWWRedirect()`.
 func NonWWWRedirectWithConfig(config RedirectConfig) makross.Handler {
 	if config.Skipper == nil {
@@ -157,12 +197,11 @@ func NonWWWRedirectWithConfig(config RedirectConfig) makross.Handler {
 		}
 
 		req := c.Request
-		scheme := string(req.URI().Scheme())
-		host := string(req.Host())
-		if host[:3] == "www" {
-			uri := req.URI()
-			c.Redirect(scheme+"://"+host[4:]+uri.String(), http.StatusMovedPermanently)
-			return nil
+		scheme := c.Scheme()
+		host := req.Host
+		if host[:3] == www {
+			uri := req.RequestURI
+			return c.Redirect(scheme+"://"+host[4:]+uri, config.Code)
 		}
 		return c.Next()
 	}
