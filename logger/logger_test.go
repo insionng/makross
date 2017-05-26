@@ -15,6 +15,7 @@ import (
 func TestLogger(t *testing.T) {
 	// Note: Just for the test coverage, not a real test.
 	e := makross.New()
+
 	req := httptest.NewRequest(makross.GET, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec, func(c *makross.Context) error {
@@ -53,6 +54,7 @@ func TestLogger(t *testing.T) {
 
 func TestLoggerIPAddress(t *testing.T) {
 	e := makross.New()
+
 	req := httptest.NewRequest(makross.GET, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec, func(c *makross.Context) error {
@@ -84,6 +86,7 @@ func TestLoggerTemplate(t *testing.T) {
 	buf := new(bytes.Buffer)
 
 	e := makross.New()
+
 	e.Use(LoggerWithConfig(LoggerConfig{
 		Format: `{"time":"${time_rfc3339_nano}","id":"${id}","remote_ip":"${remote_ip}","host":"${host}","user_agent":"${user_agent}",` +
 			`"method":"${method}","uri":"${uri}","status":${status}, "latency":${latency},` +

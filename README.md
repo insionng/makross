@@ -97,7 +97,7 @@ Now run the following command to start the Web server:
 go run server.go
 ```
 
-You should be able to access URLs such as `http://localhost:8080`, `http://localhost:8080/api/users`.
+You should be able to access URLs such as `http://localhost:8888`, `http://localhost:8888/api/users`.
 
 
 ### Routes
