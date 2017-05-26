@@ -58,7 +58,7 @@ func main() {
 	m.Use(
 		// all these handlers are shared by every route
 		access.Logger(log.Printf),
-		slash.Remover(http.StatusMovedPermanently),
+		slash.RemoveTrailingSlash(),
 		fault.Recovery(log.Printf),
 	)
 
