@@ -94,7 +94,7 @@ func GzipWithConfig(config GzipConfig) makross.Handler {
 }
 
 func (w *gzipResponseWriter) WriteHeader(code int) {
-	if code == http.StatusNoContent { // Issue #489
+	if code == makross.StatusNoContent { // Issue #489
 		w.ResponseWriter.Header().Del(makross.HeaderContentEncoding)
 	}
 	w.ResponseWriter.WriteHeader(code)

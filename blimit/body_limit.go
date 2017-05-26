@@ -1,13 +1,13 @@
 package blimit
 
 import (
-	"bytes"
 	"fmt"
+	"io"
+	"sync"
+
 	"github.com/insionng/makross"
 	lbytes "github.com/insionng/makross/libraries/gommon/bytes"
 	"github.com/insionng/makross/skipper"
-	"io"
-	"sync"
 )
 
 type (
@@ -24,7 +24,7 @@ type (
 
 	limitedReader struct {
 		BodyLimitConfig
-		reader  io.Reader
+		reader  io.ReadCloser
 		read    int64
 		context *makross.Context
 	}
@@ -74,15 +74,15 @@ func BodyLimitWithConfig(config BodyLimitConfig) makross.Handler {
 		req := c.Request
 
 		// Based on content length
-		if int64(req.Header.ContentLength()) > config.limit {
+		if req.ContentLength > config.limit {
 			return makross.ErrStatusRequestEntityTooLarge
 		}
 
 		// Based on content read
 		r := pool.Get().(*limitedReader)
-		r.Reset(bytes.NewBuffer(req.Body()), c)
+		r.Reset(req.Body, c)
 		defer pool.Put(r)
-		req.SetBodyStream(r, 0)
+		req.Body = r
 
 		return c.Next()
 	}
@@ -98,7 +98,11 @@ func (r *limitedReader) Read(b []byte) (n int, err error) {
 	return
 }
 
-func (r *limitedReader) Reset(reader io.Reader, context *makross.Context) {
+func (r *limitedReader) Close() error {
+	return r.reader.Close()
+}
+
+func (r *limitedReader) Reset(reader io.ReadCloser, context *makross.Context) {
 	r.reader = reader
 	r.context = context
 }
