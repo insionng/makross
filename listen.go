@@ -51,6 +51,8 @@ func GetAddress(args ...interface{}) string {
 			}
 		case int:
 			port = arg
+		case int64:
+			port = int(arg)
 		}
 	} else if len(args) >= 2 {
 		if arg, ok := args[0].(string); ok {
