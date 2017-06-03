@@ -28,7 +28,7 @@ func (c *Context) NewPriorityQueuesMap() map[string]*pueue.PriorityQueue {
 
 func (c *Context) RemoveFilterHook(key string) {
 	if c.HasFilterHook(key) {
-		delete(c.makross.FiltersMap, key)
+		delete(c.FiltersMap, key)
 	}
 }
 
@@ -43,7 +43,7 @@ func (c *Context) RemoveActionsHook() {
 }
 
 func (c *Context) HasFilterHook(key string) bool {
-	if _, okay := c.makross.FiltersMap[key]; okay {
+	if _, okay := c.FiltersMap[key]; okay {
 		return true
 	}
 	return false
@@ -83,7 +83,7 @@ func (c *Context) AddFilterHook(key string, function func([]byte) []byte, priori
 }
 
 func (c *Context) CurrentFilter() string {
-	return c.makross.CurrentFilterKey
+	return c.CurrentFilterKey
 }
 
 func (c *Context) DoActionHook(key string) {
@@ -98,7 +98,13 @@ func (c *Context) DoFilterHook(key string, function func() []byte) []byte {
 		return c.DoFilterHook(key, function)
 	}
 
-	c.makross.CurrentFilterKey = key
+	if !c.HasFilterHook(key) {
+		if c.FiltersMap == nil {
+			c.FiltersMap = make(map[string][]byte)
+		}
+	}
+
+	c.CurrentFilterKey = key
 	if c.HasActionHook(key) {
 		for c.makross.QueuesMap[key].Len() > 0 {
 			n, okay := c.makross.QueuesMap[key].Pop().(*Node)
@@ -107,15 +113,15 @@ func (c *Context) DoFilterHook(key string, function func() []byte) []byte {
 			}
 
 			if function != nil { //for Filter
-				if c.makross.FiltersMap[key] != nil {
-					c.makross.FiltersMap[key] = n.callback(c.makross.FiltersMap[key])
+				if c.FiltersMap[key] != nil {
+					c.FiltersMap[key] = n.callback(c.FiltersMap[key])
 				} else {
-					c.makross.FiltersMap[key] = n.callback(function())
+					c.FiltersMap[key] = n.callback(function())
 				}
 			} else { //for Action
-				c.makross.FiltersMap[key] = n.callback(nil)
+				c.FiltersMap[key] = n.callback(nil)
 			}
 		}
 	}
-	return c.makross.FiltersMap[key]
+	return c.FiltersMap[key]
 }
