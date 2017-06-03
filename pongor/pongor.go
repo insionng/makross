@@ -33,6 +33,8 @@ type Option struct {
 	Directory string
 	// Reload to reload templates everytime.
 	Reload bool
+	// Filter to do Filter for templates
+	Filter bool
 }
 
 type Renderer struct {
@@ -114,9 +116,13 @@ func (r *Renderer) Render(w io.Writer, name string, ctx *makross.Context) error 
 		return err
 	}
 
-	//_, err = io.Copy(w, bytes.NewReader())
-	_, err = fmt.Fprintf(w, "%s", ctx.DoFilterHook(fmt.Sprintf("%s_template", name), func() []byte {
-		return buffer.Bytes()
-	}))
+	if b := buffer.Bytes(); r.Filter {
+		_, err = fmt.Fprintf(w, "%s", ctx.DoFilterHook(fmt.Sprintf("%s_template", name), func() []byte {
+			return b
+		}))
+	} else {
+		_, err = fmt.Fprintf(w, "%s", b)
+	}
 	return err
+
 }

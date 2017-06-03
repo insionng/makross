@@ -1,6 +1,8 @@
 package gonder
 
 import (
+	"bytes"
+	"fmt"
 	"io"
 	"path/filepath"
 	"sync"
@@ -21,6 +23,8 @@ type (
 		Directory string
 		// Reload to reload templates everytime.
 		Reload bool
+		// Filter to do Filter for templates
+		Filter bool
 		// DelimLeft "{{"
 		DelimLeft string
 		// DelimRight "}}"
@@ -88,6 +92,20 @@ func (r *Renderer) Render(w io.Writer, name string, c *makross.Context) (err err
 		return err
 	}
 	template.Delims(r.DelimLeft, r.DelimRight)
-	err = template.Execute(w, c.GetStore())
+
+	var buffer bytes.Buffer
+	err = template.Execute(&buffer, c.GetStore())
+	if err != nil {
+		return err
+	}
+
+	if b := buffer.Bytes(); r.Filter {
+		_, err = fmt.Fprintf(w, "%s", c.DoFilterHook(fmt.Sprintf("%s_template", name), func() []byte {
+			return b
+		}))
+	} else {
+		_, err = fmt.Fprintf(w, "%s", b)
+	}
 	return err
+
 }

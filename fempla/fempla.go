@@ -75,6 +75,8 @@ type (
 		Directory string
 		// Reload to reload templates everytime.
 		Reload bool
+		// Filter to do Filter for templates
+		Filter bool
 		// DelimLeft "{{"
 		DelimLeft string
 		// DelimRight "}}"
@@ -162,8 +164,15 @@ func (r *Renderer) Render(w io.Writer, name string, ctx *makross.Context) error 
 	if err != nil {
 		return err
 	}
-	s := template.ExecuteString(ctx.GetStore())
-	//_, err = io.Copy(w, bytes.NewReader([]byte(s)))
-	_, err = fmt.Fprintf(w, "%s", s)
+
+	if b := []byte(template.ExecuteString(ctx.GetStore())); r.Filter {
+		_, err = fmt.Fprintf(w, "%s", ctx.DoFilterHook(fmt.Sprintf("%s_template", name), func() []byte {
+			return b
+		}))
+	} else {
+		_, err = fmt.Fprintf(w, "%s", b)
+	}
+
 	return err
+
 }
