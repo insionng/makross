@@ -1,9 +1,10 @@
 package fempla_test
 
 import (
+	"testing"
+
 	"github.com/insionng/makross"
 	"github.com/insionng/makross/fempla"
-	"testing"
 )
 
 func TestRender(t *testing.T) {
@@ -13,7 +14,7 @@ func TestRender(t *testing.T) {
 		return func(self *makross.Context) error {
 			self.Set("title", "你好，世界")
 
-			// render ./templates/index.html file.
+			// render ./template/index.html file.
 			return self.Render("index")
 		}
 	}())

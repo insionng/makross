@@ -1,11 +1,12 @@
 package gonder
 
 import (
-	"github.com/insionng/makross"
 	"io"
 	"path/filepath"
 	"sync"
 	"text/template"
+
+	"github.com/insionng/makross"
 )
 
 type (
@@ -33,7 +34,7 @@ func perparOption(options []Option) Option {
 		opt = options[0]
 	}
 	if len(opt.Directory) == 0 {
-		opt.Directory = "templates"
+		opt.Directory = "template"
 	}
 	if len(opt.DelimLeft) == 0 {
 		opt.DelimLeft = "{{"

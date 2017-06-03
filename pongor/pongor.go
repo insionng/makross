@@ -16,10 +16,13 @@
 package pongor
 
 import (
+	"bytes"
 	"io"
 	"path/filepath"
 
 	"sync"
+
+	"fmt"
 
 	"github.com/flosch/pongo2"
 	"github.com/insionng/makross"
@@ -44,7 +47,7 @@ func perparOption(options []Option) Option {
 		opt = options[0]
 	}
 	if len(opt.Directory) == 0 {
-		opt.Directory = "templates"
+		opt.Directory = "template"
 	}
 	return opt
 }
@@ -104,6 +107,16 @@ func (r *Renderer) Render(w io.Writer, name string, ctx *makross.Context) error 
 	if err != nil {
 		return err
 	}
-	err = template.ExecuteWriter(ctx.GetStore(), w)
+
+	var buffer bytes.Buffer
+	err = template.ExecuteWriter(ctx.GetStore(), &buffer)
+	if err != nil {
+		return err
+	}
+
+	//_, err = io.Copy(w, bytes.NewReader())
+	_, err = fmt.Fprintf(w, "%s", ctx.DoFilterHook(fmt.Sprintf("%s_template", name), func() []byte {
+		return buffer.Bytes()
+	}))
 	return err
 }

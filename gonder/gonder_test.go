@@ -1,9 +1,10 @@
 package gonder_test
 
 import (
+	"testing"
+
 	"github.com/insionng/makross"
 	"github.com/insionng/makross/gonder"
-	"testing"
 )
 
 func TestRender(t *testing.T) {
@@ -12,7 +13,7 @@ func TestRender(t *testing.T) {
 	e.Get("/", func() makross.Handler {
 		return func(self *makross.Context) error {
 			self.Set("title", "你好，世界")
-			// render ./templates/index file.
+			// render ./template/index file.
 			return self.Render("index")
 		}
 	}())

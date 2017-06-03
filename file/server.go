@@ -81,11 +81,11 @@ func Server(pathMap PathMap, opts ...ServerOptions) makross.Handler {
 
 	return func(c *makross.Context) error {
 		if c.Request.Method != "GET" && c.Request.Method != "HEAD" {
-			return makross.NewHTTPError(http.StatusMethodNotAllowed)
+			return makross.NewHTTPError(makross.StatusMethodNotAllowed)
 		}
 		path, found := matchPath(c.Request.URL.Path, from, to)
 		if !found || options.Allow != nil && !options.Allow(c, path) {
-			return makross.NewHTTPError(http.StatusNotFound)
+			return makross.NewHTTPError(makross.StatusNotFound)
 		}
 
 		var (
@@ -99,17 +99,17 @@ func Server(pathMap PathMap, opts ...ServerOptions) makross.Handler {
 				c.ServeFile(options.CatchAllFile) // ServeFile(c, dir, options.CatchAllFile)
 				return c.Abort()
 			}
-			return makross.NewHTTPError(http.StatusNotFound, err.Error())
+			return makross.NewHTTPError(makross.StatusNotFound, err.Error())
 		}
 		defer file.Close()
 
 		if fstat, err = file.Stat(); err != nil {
-			return makross.NewHTTPError(http.StatusNotFound, err.Error())
+			return makross.NewHTTPError(makross.StatusNotFound, err.Error())
 		}
 
 		if fstat.IsDir() {
 			if len(options.IndexFile) == 0 {
-				return makross.NewHTTPError(http.StatusNotFound)
+				return makross.NewHTTPError(makross.StatusNotFound)
 			}
 			fp := filepath.Join(".", path, options.IndexFile)
 			c.ServeFile(fp)
@@ -133,18 +133,18 @@ func Content(path string) makross.Handler {
 
 	return func(c *makross.Context) error {
 		if c.Request.Method != "GET" && c.Request.Method != "HEAD" {
-			return makross.NewHTTPError(http.StatusMethodNotAllowed)
+			return makross.NewHTTPError(makross.StatusMethodNotAllowed)
 		}
 		file, err := os.Open(path)
 		if err != nil {
-			return makross.NewHTTPError(http.StatusNotFound, err.Error())
+			return makross.NewHTTPError(makross.StatusNotFound, err.Error())
 		}
 		defer file.Close()
 		fstat, err := file.Stat()
 		if err != nil {
-			return makross.NewHTTPError(http.StatusNotFound, err.Error())
+			return makross.NewHTTPError(makross.StatusNotFound, err.Error())
 		} else if fstat.IsDir() {
-			return makross.NewHTTPError(http.StatusNotFound)
+			return makross.NewHTTPError(makross.StatusNotFound)
 		}
 
 		http.ServeContent(c.Response, c.Request, path, fstat.ModTime(), file)
