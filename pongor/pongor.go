@@ -104,20 +104,20 @@ func (r *Renderer) getTemplate(name string) (t *pongo2.Template, err error) {
 }
 
 // Render 渲染
-func (r *Renderer) Render(w io.Writer, name string, ctx *makross.Context) error {
+func (r *Renderer) Render(w io.Writer, name string, c *makross.Context) error {
 	template, err := r.getTemplate(name)
 	if err != nil {
 		return err
 	}
 
 	var buffer bytes.Buffer
-	err = template.ExecuteWriter(ctx.GetStore(), &buffer)
+	err = template.ExecuteWriter(c.GetStore(), &buffer)
 	if err != nil {
 		return err
 	}
 
 	if b := buffer.Bytes(); r.Filter {
-		_, err = fmt.Fprintf(w, "%s", ctx.DoFilterHook(fmt.Sprintf("%s_template", name), func() []byte {
+		_, err = fmt.Fprintf(w, "%s", c.DoFilterHook(fmt.Sprintf("%s_template", name), func() []byte {
 			return b
 		}))
 	} else {
