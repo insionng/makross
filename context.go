@@ -9,7 +9,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"net"
 	"net/http"
@@ -26,18 +25,17 @@ const (
 
 // Context represents the contextual data and environment while processing an incoming HTTP request.
 type Context struct {
-	Request  *http.Request // the current request
-	Response *Response     // the response writer
-	ktx      ktx.Context   // standard context
-	makross  *Makross
-	pnames   []string               // list of route parameter names
-	pvalues  []string               // list of parameter values corresponding to pnames
-	data     map[string]interface{} // data items managed by Get and Set
-	//FiltersMap       map[string][]byte
-	CurrentFilterKey string
-	index            int       // the index of the currently executing handler in handlers
-	handlers         []Handler // the handlers associated with the current route
-	writer           DataWriter
+	Request    *http.Request // the current request
+	Response   *Response     // the response writer
+	ktx        ktx.Context   // standard context
+	makross    *Makross
+	pnames     []string               // list of route parameter names
+	pvalues    []string               // list of parameter values corresponding to pnames
+	data       map[string]interface{} // data items managed by Get and Set
+	FiltersMap map[string][]byte
+	index      int       // the index of the currently executing handler in handlers
+	handlers   []Handler // the handlers associated with the current route
+	writer     DataWriter
 }
 
 // Reset sets the request and response of the context and resets all other properties.
@@ -46,7 +44,7 @@ func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 	c.Request = r
 	c.ktx = ktx.Background()
 	c.data = nil
-	c.makross.FiltersMap[c.makross] = nil
+	c.FiltersMap = make(map[string][]byte)
 	c.index = -1
 	c.writer = DefaultDataWriter
 }
@@ -77,21 +75,11 @@ func (c *Context) Makross() *Makross {
 
 // Stop 优雅停止HTTP服务 不超过特定时长
 func (c *Context) Stop(times ...int64) error {
-	c.DoFilterHook("makross_stop", func() []byte {
-		var s = fmt.Sprintf("Makross %s", "Stop")
-		log.Println(s)
-		return []byte(s)
-	})
 	return c.makross.Stop(times...)
 }
 
 // Close 立即关闭HTTP服务
 func (c *Context) Close() error {
-	c.DoFilterHook("makross_close", func() []byte {
-		var s = fmt.Sprintf("Makross %s", "Close")
-		log.Println(s)
-		return []byte(s)
-	})
 	return c.makross.Server.Close()
 }
 
@@ -415,9 +403,7 @@ func (c *Context) JSONBlob(b []byte, status ...int) (err error) {
 	} else {
 		code = StatusOK
 	}
-	err = c.Blob(MIMEApplicationJSONCharsetUTF8, b, code)
-	c.Abort()
-	return
+	return c.Blob(MIMEApplicationJSONCharsetUTF8, b, code)
 }
 
 func (c *Context) JSONP(callback string, i interface{}, status ...int) (err error) {
@@ -598,7 +584,7 @@ func (c *Context) NoContent(status ...int) error {
 		code = StatusOK
 	}
 	c.Response.WriteHeader(code)
-	return c.Abort()
+	return nil
 }
 
 // SetDataWriter sets the data writer that will be used by Write().

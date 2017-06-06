@@ -21,14 +21,15 @@ type (
 	// Makross manages routes and dispatches HTTP requests to the handlers of the matching routes.
 	Makross struct {
 		RouteGroup
-		pool             sync.Pool
-		routes           []*Route
-		namedRoutes      map[string]*Route
-		stores           map[string]routeStore
-		data             map[string]interface{} // data items managed by Key , Value
-		QueuesMap        map[string]*pueue.PriorityQueue
-		FiltersMap       map[string][]byte
-		CurrentFilterKey string
+		pool        sync.Pool
+		routes      []*Route
+		namedRoutes map[string]*Route
+		stores      map[string]routeStore
+		data        map[string]interface{} // data items managed by Key , Value
+
+		QueuesMap  map[string]*pueue.PriorityQueue
+		FiltersMap map[string][]byte // Global Filters
+
 		maxParams        int
 		notFound         []Handler
 		notFoundHandlers []Handler
@@ -291,7 +292,6 @@ func New() (m *Makross) {
 		namedRoutes: make(map[string]*Route),
 		stores:      make(map[string]routeStore),
 		QueuesMap:   make(map[string]*pueue.PriorityQueue),
-		FiltersMap:  make(map[string][]byte),
 	}
 	m.Server.Handler = m
 	m.RouteGroup = *newRouteGroup("", m, make([]Handler, 0))
