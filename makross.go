@@ -292,6 +292,7 @@ func New() (m *Makross) {
 		namedRoutes: make(map[string]*Route),
 		stores:      make(map[string]routeStore),
 		QueuesMap:   make(map[string]*pueue.PriorityQueue),
+		FiltersMap:  make(map[string][]byte),
 	}
 	m.Server.Handler = m
 	m.RouteGroup = *newRouteGroup("", m, make([]Handler, 0))
@@ -320,10 +321,8 @@ func (m *Makross) NewContext(r *http.Request, w http.ResponseWriter, handlers ..
 func (m *Makross) AcquireContext() *Context {
 	if ctx, okay := m.pool.Get().(*Context); okay {
 		return ctx
-	} else {
-		panic("Not Standard Makross Context")
-		return nil
 	}
+	panic("Not Standard Makross Context")
 }
 
 // ReleaseContext returns the `Context` instance back to the pool.
@@ -345,8 +344,8 @@ func (m *Makross) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	m.ReleaseContext(c)
 }
 
-// Stop 优雅停止HTTP服务 不超过特定时长
-func (m *Makross) Stop(times ...int64) error {
+// Shutdown 优雅停止HTTP服务 不超过特定时长
+func (m *Makross) Shutdown(times ...int64) error {
 	var n time.Duration
 	if len(times) > 0 {
 		n = time.Duration(times[0])
@@ -355,18 +354,20 @@ func (m *Makross) Stop(times ...int64) error {
 	}
 	// shut down gracefully, but wait no longer than n seconds before halting
 	ctx, _ := context.WithTimeout(context.Background(), n*time.Second)
+	m.DoActionHook("Makross_Shutdown")
 	return m.Server.Shutdown(ctx)
 }
 
 // Close 立即关闭HTTP服务
 func (m *Makross) Close() error {
+	m.DoActionHook("Makross_Close")
 	return m.Server.Close()
 }
 
 // Route returns the named route.
 // Nil is returned if the named route cannot be found.
-func (r *Makross) Route(name string) *Route {
-	return r.namedRoutes[name]
+func (m *Makross) Route(name string) *Route {
+	return m.namedRoutes[name]
 }
 
 // Routes returns all routes managed by the makross.
@@ -472,15 +473,15 @@ func (r *Makross) addRoute(route *Route, handlers []Handler) {
 	}
 }
 
-func (r *Makross) find(method, path string, pvalues []string) (handlers []Handler, pnames []string) {
-	var hh interface{}
-	if store := r.stores[method]; store != nil {
-		hh, pnames = store.Get(path, pvalues)
+func (m *Makross) find(method, path string, pvalues []string) (handlers []Handler, pnames []string) {
+	var hs interface{}
+	if store := m.stores[method]; store != nil {
+		hs, pnames = store.Get(path, pvalues)
 	}
-	if hh != nil {
-		return hh.([]Handler), pnames
+	if hs != nil {
+		return hs.([]Handler), pnames
 	}
-	return r.notFoundHandlers, pnames
+	return m.notFoundHandlers, pnames
 }
 
 func (r *Makross) findAllowedMethods(path string) map[string]bool {

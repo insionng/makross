@@ -73,9 +73,9 @@ func (c *Context) Makross() *Makross {
 	return c.makross
 }
 
-// Stop 优雅停止HTTP服务 不超过特定时长
-func (c *Context) Stop(times ...int64) error {
-	return c.makross.Stop(times...)
+// Shutdown 优雅停止HTTP服务 不超过特定时长
+func (c *Context) Shutdown(times ...int64) error {
+	return c.makross.Shutdown(times...)
 }
 
 // Close 立即关闭HTTP服务
