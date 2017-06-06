@@ -28,6 +28,8 @@ type Context struct {
 	Request    *http.Request // the current request
 	Response   *Response     // the response writer
 	ktx        ktx.Context   // standard context
+	Flash      *Flash
+	Session    Sessioner
 	makross    *Makross
 	pnames     []string               // list of route parameter names
 	pvalues    []string               // list of parameter values corresponding to pnames

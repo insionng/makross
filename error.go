@@ -3,6 +3,7 @@ package makross
 import (
 	"errors"
 	"fmt"
+	"net/http"
 )
 
 // Errors
@@ -11,6 +12,7 @@ var (
 	ErrNotFound                    = NewHTTPError(StatusNotFound)
 	ErrStatusBadRequest            = NewHTTPError(StatusBadRequest)
 	ErrUnauthorized                = NewHTTPError(StatusUnauthorized)
+	ErrForbidden                   = NewHTTPError(http.StatusForbidden)
 	ErrMethodNotAllowed            = NewHTTPError(StatusMethodNotAllowed)
 	ErrStatusRequestEntityTooLarge = NewHTTPError(StatusRequestEntityTooLarge)
 	ErrRendererNotRegistered       = errors.New("renderer not registered")

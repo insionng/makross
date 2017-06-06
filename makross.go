@@ -76,6 +76,8 @@ var (
 		PUT,
 		TRACE,
 	}
+	// Flash applies to current request.
+	FlashNow bool
 )
 
 // MIME types
