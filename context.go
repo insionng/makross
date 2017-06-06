@@ -32,9 +32,9 @@ type Context struct {
 	pnames     []string               // list of route parameter names
 	pvalues    []string               // list of parameter values corresponding to pnames
 	data       map[string]interface{} // data items managed by Get and Set
-	FiltersMap map[string][]byte
-	index      int       // the index of the currently executing handler in handlers
-	handlers   []Handler // the handlers associated with the current route
+	FiltersMap map[string][]byte      // Not Global Filters, only in Context
+	index      int                    // the index of the currently executing handler in handlers
+	handlers   []Handler              // the handlers associated with the current route
 	writer     DataWriter
 }
 
@@ -44,7 +44,7 @@ func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 	c.Request = r
 	c.ktx = ktx.Background()
 	c.data = nil
-	c.FiltersMap = make(map[string][]byte)
+	c.FiltersMap = nil
 	c.index = -1
 	c.writer = DefaultDataWriter
 }
