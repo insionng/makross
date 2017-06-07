@@ -141,6 +141,11 @@ func (c *Context) HandleError(err error) {
 	c.makross.HandleError(c, err)
 }
 
+func (c *Context) IsWebSocket() bool {
+	upgrade := c.Request.Header.Get(HeaderUpgrade)
+	return upgrade == "websocket" || upgrade == "Websocket"
+}
+
 // RealIP implements `Context#RealIP` function.
 func (c *Context) RealIP() string {
 	ra := c.Request.RemoteAddr
