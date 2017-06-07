@@ -18,7 +18,7 @@ It has the following features:
 * compatible with `http.Handler` and `http.HandlerFunc`
 * ready-to-use handlers sufficient for building RESTful APIs
 
-If you are using [fasthttp](https://github.com/valyala/fasthttp), you may use a similar makross package [makross](https://github.com/insionng/makross) which is adapted from Makross.
+If you are using [fasthttp](https://github.com/valyala/fasthttp), you may use a similar makross package [macross](https://github.com/insionng/macross) which is adapted from Makross.
 
 ## Requirements
 
@@ -314,7 +314,6 @@ templates/index.html
 ```
 
 
-
 ## Getting Started via Pongo template
 
 ```go
@@ -495,7 +494,6 @@ go run server.go
 ```
 
 You should be able to access URLs such as `http://localhost:8888`, `http://localhost:8888/api/users`.
-
 
 
 ### Routes
