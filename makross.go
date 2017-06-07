@@ -362,13 +362,13 @@ func (m *Makross) Shutdown(times ...int64) error {
 	}
 	// shut down gracefully, but wait no longer than n seconds before halting
 	ctx, _ := context.WithTimeout(context.Background(), n*time.Second)
-	m.DoActionHook("Makross_Shutdown")
+	m.DoActionHook("MakrossShutdown")
 	return m.Server.Shutdown(ctx)
 }
 
 // Close 立即关闭HTTP服务
 func (m *Makross) Close() error {
-	m.DoActionHook("Makross_Close")
+	m.DoActionHook("MakrossClose")
 	return m.Server.Close()
 }
 

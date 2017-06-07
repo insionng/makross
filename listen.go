@@ -16,7 +16,7 @@ func (m *Makross) Listen(args ...interface{}) {
 	} else {
 		runtime.GOMAXPROCS(runtime.NumCPU() * 4)
 	}
-
+	m.DoActionHook("MakrossListen")
 	m.Server.Addr = addr
 	m.Server.ListenAndServe()
 }
@@ -28,7 +28,7 @@ func (m *Makross) ListenTLS(certFile, keyFile string, args ...interface{}) {
 	} else {
 		runtime.GOMAXPROCS(runtime.NumCPU() * 4)
 	}
-
+	m.DoActionHook("MakrossListenTLS")
 	m.Server.Addr = addr
 	m.Server.ListenAndServeTLS(certFile, keyFile)
 }
