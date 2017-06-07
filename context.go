@@ -17,28 +17,43 @@ import (
 	"path"
 	"path/filepath"
 	"time"
+
+	"github.com/Unknwon/i18n"
 )
 
 const (
 	indexPage = "index.html"
 )
 
-// Context represents the contextual data and environment while processing an incoming HTTP request.
-type Context struct {
-	Request    *http.Request // the current request
-	Response   *Response     // the response writer
-	ktx        ktx.Context   // standard context
-	Flash      *Flash
-	Session    Sessioner
-	makross    *Makross
-	pnames     []string               // list of route parameter names
-	pvalues    []string               // list of parameter values corresponding to pnames
-	data       map[string]interface{} // data items managed by Get and Set
-	FiltersMap map[string][]byte      // Not Global Filters, only in Context
-	index      int                    // the index of the currently executing handler in handlers
-	handlers   []Handler              // the handlers associated with the current route
-	writer     DataWriter
-}
+type (
+	// Context represents the contextual data and environment while processing an incoming HTTP request.
+	Context struct {
+		Request  *http.Request // the current request
+		Response *Response     // the response writer
+		ktx      ktx.Context   // standard context
+		Localer
+		Flash      *Flash
+		Session    Sessioner
+		makross    *Makross
+		pnames     []string               // list of route parameter names
+		pvalues    []string               // list of parameter values corresponding to pnames
+		data       map[string]interface{} // data items managed by Get and Set
+		FiltersMap map[string][]byte      // Not Global Filters, only in Context
+		index      int                    // the index of the currently executing handler in handlers
+		handlers   []Handler              // the handlers associated with the current route
+		writer     DataWriter
+	}
+
+	// Localer reprents a localization interface.
+	Localer interface {
+		Language() string
+		Tr(string, ...interface{}) string
+	}
+
+	localer struct {
+		i18n.Locale
+	}
+)
 
 // Reset sets the request and response of the context and resets all other properties.
 func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {

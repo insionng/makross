@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gopkg.in/ini.v1"
 )
 
 type (
@@ -76,8 +78,12 @@ var (
 		PUT,
 		TRACE,
 	}
-	// Flash applies to current request.
+
+	// FlashNow applies to current request.
 	FlashNow bool
+
+	// Configuration convention object.
+	cfg *ini.File
 )
 
 // MIME types
@@ -540,4 +546,19 @@ func HTTPHandler(h http.Handler) Handler {
 		h.ServeHTTP(c.Response, c.Request)
 		return nil
 	}
+}
+
+// SetConfig sets data sources for configuration.
+func SetConfig(source interface{}, others ...interface{}) (_ *ini.File, err error) {
+	cfg, err = ini.Load(source, others...)
+	return Config(), err
+}
+
+// Config returns configuration convention object.
+// It returns an empty object if there is no one available.
+func Config() *ini.File {
+	if cfg == nil {
+		return ini.Empty()
+	}
+	return cfg
 }

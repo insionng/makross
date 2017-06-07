@@ -18,7 +18,7 @@ It has the following features:
 * compatible with `http.Handler` and `http.HandlerFunc`
 * ready-to-use handlers sufficient for building RESTful APIs
 
-If you are using [fasthttp](https://github.com/valyala/fasthttp), you may use a similar makross package [macross](https://github.com/insionng/macross) which is adapted from Makross.
+If you are using [fasthttp](https://github.com/valyala/fasthttp), you may use a similar makross package [makross](https://github.com/insionng/makross) which is adapted from Makross.
 
 ## Requirements
 
@@ -32,7 +32,404 @@ Run the following command to install the package:
 go get github.com/insionng/makross
 ```
 
+
 ## Getting Started
+
+Create a `server.go` file with the following content:
+
+```go
+package main
+
+import (
+	"github.com/insionng/makross"
+)
+
+func main() {
+	m := makross.New()
+	
+	m.Get("/", func(self *makross.Context) error {
+		return self.String("Hello, Makross")
+	})
+
+	m.Listen(9000)
+}
+```
+
+Now run the following command to start the Web server:
+
+```
+go run server.go
+```
+
+You should be able to access URLs such as `http://localhost:9000`.
+
+
+## Getting Started via JWT
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/insionng/makross"
+	"github.com/insionng/makross/cors"
+	"github.com/insionng/makross/jwt"
+	"github.com/insionng/makross/logger"
+	"github.com/insionng/makross/recover"
+	"time"
+)
+
+/*
+curl -I -X GET http://localhost:9000/jwt/get/ -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOjEsImV4cCI6MTQ3OTQ4NDUzOH0.amQOtO0GESwLoevaGSoR55jCUqZ6vsIi9DPTkDh4tSk"
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0    26    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0HTTP/1.1 200 OK
+Server: Makross
+Date: Fri, 18 Nov 2016 15:55:18 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 26
+Vary: Origin
+Access-Control-Allow-Origin: *
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc2VySWQiOjEsImV4cCI6MTQ3OTQ4NDU3OH0.KBTm7A3xqWmQ6NLfUecfowgszfKzwMrjO3k0gf8llc8
+*/
+
+func main() {
+	m := makross.New()
+	m.Use(logger.Logger())
+	m.Use(recover.Recover())
+	m.Use(cors.CORS())
+
+	m.Get("/", func(self *makross.Context) error {
+		fmt.Println(self.Response.Header.String())
+		var data = map[string]interface{}{}
+		data["version"] = "1.0.0"
+		return self.JSON(data)
+	})
+
+	var secret = "secret"
+	var exprires = time.Minute * 1
+	// 给用户返回token之前请先密码验证用户身份
+	m.Post("/signin/", func(self *makross.Context) error {
+
+		fmt.Println(self.Response.String())
+
+		username := self.Args("username").String()
+		password := self.Args("password").String()
+		if (username == "insion") && (password == "PaSsworD") {
+			claims := jwt.NewMapClaims()
+			claims["UserId"] = 1
+			claims["exp"] = time.Now().Add(exprires).Unix()
+
+			tk, _ := jwt.NewTokenString(secret, "HS256", claims)
+
+			var data = map[string]interface{}{}
+			data["token"] = tk
+
+			return self.JSON(data)
+		}
+
+		herr := new(makross.HTTPError)
+		herr.Message = "ErrUnauthorized"
+		herr.Status = makross.StatusUnauthorized
+		return self.JSON(herr, makross.StatusUnauthorized)
+
+	})
+
+	g := m.Group("/jwt", jwt.JWT(secret))
+	// http://localhost:9000/jwt/get/
+	g.Get("/get/", func(self *makross.Context) error {
+
+		var data = map[string]interface{}{}
+
+		claims := jwt.GetMapClaims(self)
+		jwtUserId := claims["UserId"].(float64)
+		fmt.Println(jwtUserId)
+		exp := int64(claims["exp"].(float64))
+		exptime := time.Unix(exp, 0).Sub(time.Now())
+
+		if (exptime > 0) && (exptime < (exprires / 3)) {
+			fmt.Println("exptime will be expires")
+			claims["UserId"] = 1
+			claims["exp"] = time.Now().Add(exprires).Unix()
+
+			token := jwt.NewToken("HS256", claims)
+			tokenString, _ := token.SignedString([]byte(secret))
+
+			self.Response.Header.Set(makross.HeaderAccessControlExposeHeaders, "Authorization")
+			self.Response.Header.Set("Authorization", jwt.Bearer+" "+tokenString)
+			self.Set(jwt.DefaultJWTConfig.ContextKey, token)
+		}
+
+		data["value"] = "Hello, Makross"
+		return self.JSON(data)
+	})
+
+	m.Listen(":9000")
+}
+```
+
+
+## Getting Started via Session
+
+```go
+package main
+
+import (
+	"github.com/insionng/makross"
+	"github.com/insionng/makross/recover"
+	"github.com/insionng/makross/session"
+	_ "github.com/insionng/makross/session/redis"
+	"log"
+)
+
+func main() {
+
+	v := makross.New()
+	v.Use(recover.Recover())
+	//v.Use(session.Sessioner(session.Options{"file", `{"cookieName":"MakrossSessionId","gcLifetime":3600,"providerConfig":"./data/session"}`}))
+	v.Use(session.Sessioner(session.Options{"redis", `{"cookieName":"MakrossSessionId","gcLifetime":3600,"providerConfig":"127.0.0.1:6379"}`}))
+
+	v.Get("/get", func(self *makross.Context) error {
+		value := "nil"
+		valueIf := self.Session.Get("key")
+		if valueIf != nil {
+			value = valueIf.(string)
+		}
+
+		return self.String(value)
+
+	})
+
+	v.Get("/set", func(self *makross.Context) error {
+
+		val := self.QueryParam("v")
+		if len(val) == 0 {
+			val = "value"
+		}
+
+		err := self.Session.Set("key", val)
+		if err != nil {
+			log.Printf("sess.set %v \n", err)
+		}
+		return self.String("okay")
+	})
+
+	v.Listen(7777)
+}
+
+```
+
+## Getting Started via i18n
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/insionng/makross"
+	"github.com/insionng/makross/i18n"
+)
+
+func main() {
+	m := makross.New()
+	m.Use(i18n.I18n(i18n.Options{
+		Directory:   "locale",
+		DefaultLang: "zh-CN",
+		Langs:       []string{"en-US", "zh-CN"},
+		Names:       []string{"English", "简体中文"},
+		Redirect:    true,
+	}))
+
+	m.Get("/", func(self *makross.Context) error {
+		fmt.Println("Header>", self.Request.Header.String())
+		return self.String("current language is " + self.Language())
+	})
+
+	// Use in handler.
+	m.Get("/trans", func(self *makross.Context) error {
+		fmt.Println("Header>", self.Request.Header.String())
+		return self.String(fmt.Sprintf("hello %s", self.Tr("world")))
+	})
+
+	fmt.Println("Listen on 9999")
+	m.Listen(9999)
+}
+
+```
+
+
+## Getting Started via Go template
+
+```go
+package main
+
+import (
+	"github.com/insionng/makross"
+	"github.com/insionng/makross/gonder"
+	"github.com/insionng/makross/logger"
+	"github.com/insionng/makross/recover"
+	"github.com/insionng/makross/static"
+)
+
+func main() {
+	v := makross.New()
+	v.Use(logger.Logger())
+	v.Use(recover.Recover())
+	v.SetRenderer(gonder.Renderor())
+	v.Use(static.Static("static"))
+	v.Get("/", func(self *makross.Context) error {
+		var data = make(map[string]interface{})
+		data["name"] = "Insion Ng"
+		self.SetStore(data)
+
+		self.SetStore(map[string]interface{}{
+			"title": "你好，世界",
+			"oh":    "no",
+		})
+		self.Set("oh", "yes") //覆盖前面指定KEY
+		return self.Render("index")
+	})
+
+	v.Listen(":9000")
+}
+
+```
+
+templates/index.html
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="/static/index.js" charset="utf-8"></script>
+<title>{{ .title }}</title>
+</head>
+<body>
+    <p>{{ .oh }}</p
+    <p>{{ .name }}</p>
+</body>
+</html>
+
+```
+
+
+
+## Getting Started via Pongo template
+
+```go
+package main
+
+import (
+	"github.com/insionng/makross"
+	"github.com/insionng/makross/logger"
+	"github.com/insionng/makross/pongor"
+	"github.com/insionng/makross/recover"
+	"github.com/insionng/makross/static"
+)
+
+func main() {
+	v := makross.New()
+	v.Use(logger.Logger())
+	v.Use(recover.Recover())
+	v.SetRenderer(pongor.Renderor())
+	v.Use(static.Static("static"))
+	v.Get("/", func(self *makross.Context) error {
+		var data = make(map[string]interface{})
+		data["name"] = "Insion Ng"
+		self.SetStore(data)
+
+		self.SetStore(map[string]interface{}{
+			"title": "你好，世界",
+			"oh":    "no",
+		})
+		self.Set("oh", "yes") //覆盖前面指定KEY
+		return self.Render("index")
+	})
+
+	v.Listen(":9000")
+}
+
+```
+
+templates/index.html
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="/static/index.js" charset="utf-8"></script>
+<title>{{ title }}</title>
+</head>
+<body>
+    <p>{{ oh }}</p
+    <p>{{ name }}</p>
+</body>
+</html>
+
+```
+
+## Getting Started via FastTemplate
+
+```go
+package main
+
+import (
+	"github.com/insionng/makross"
+	"github.com/insionng/makross/fempla"
+	"github.com/insionng/makross/logger"
+	"github.com/insionng/makross/recover"
+	"github.com/insionng/makross/static"
+)
+
+func main() {
+
+	v := makross.New()
+	v.Use(logger.Logger())
+	v.Use(recover.Recover())
+	v.SetRenderer(fempla.Renderor())
+	v.Use(static.Static("static"))
+	v.Get("/", func(self *makross.Context) error {
+		data := make(map[string]interface{})
+		data["oh"] = "no"
+		data["name"] = "Insion Ng"
+		self.Set("title", "你好，世界")
+		self.SetStore(data)
+		self.Set("oh", "yes")
+		return self.Render("index")
+	})
+
+	v.Listen(":9000")
+
+}
+
+```
+
+templates/index.html
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="/static/index.js" charset="utf-8"></script>
+<title>{{title}}</title>
+</head>
+<body>
+    <p>
+        {{oh}}
+    </p>
+    <p>
+        {{name}}
+    </p>
+</body>
+</html>
+
+```
+
+
+## Case
 
 Below we describe how to create a simple REST API using Makross.
 
@@ -98,6 +495,7 @@ go run server.go
 ```
 
 You should be able to access URLs such as `http://localhost:8888`, `http://localhost:8888/api/users`.
+
 
 
 ### Routes
@@ -414,4 +812,4 @@ m.Use(makross.HTTPHandler(http.NotFoundHandler))
 
 ### Contributes
 
-Thanks to the macross, com, echo/vodka, iris, gin, beego, ozzo-routing, FastTemplate, Pongo2, Jwt-go. And all other Go package dependencies projects
+Thanks to the makross, com, echo/vodka, iris, gin, beego, ozzo-routing, FastTemplate, Pongo2, Jwt-go. And all other Go package dependencies projects
