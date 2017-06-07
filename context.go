@@ -601,7 +601,7 @@ func (c *Context) NoContent(status ...int) error {
 		code = StatusOK
 	}
 	c.Response.WriteHeader(code)
-	return nil
+	return c.Abort()
 }
 
 // SetDataWriter sets the data writer that will be used by Write().
