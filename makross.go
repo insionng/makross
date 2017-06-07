@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/ini.v1"
+	"github.com/insionng/makross/libraries/ini.v1"
 )
 
 type (

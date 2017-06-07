@@ -38,18 +38,18 @@ func Test_Key(t *testing.T) {
 				return in
 			}), ShouldEqual, "ini")
 			So(sec.Key("NAME").Comment, ShouldEqual, "; Package name")
-			So(sec.Key("IMPORT_PATH").String(), ShouldEqual, "yougam/libraries/ini.v1")
+			So(sec.Key("IMPORT_PATH").String(), ShouldEqual, "gopkg.in/ini.v1")
 		})
 
 		Convey("Get values in non-default section", func() {
 			sec := cfg.Section("author")
 			So(sec, ShouldNotBeNil)
 			So(sec.Key("NAME").String(), ShouldEqual, "Unknwon")
-			So(sec.Key("GITHUB").String(), ShouldEqual, "https://yougam/libraries/Unknwon")
+			So(sec.Key("GITHUB").String(), ShouldEqual, "https://github.com/Unknwon")
 
 			sec = cfg.Section("package")
 			So(sec, ShouldNotBeNil)
-			So(sec.Key("CLONE_URL").String(), ShouldEqual, "https://yougam/libraries/ini.v1")
+			So(sec.Key("CLONE_URL").String(), ShouldEqual, "https://gopkg.in/ini.v1")
 		})
 
 		Convey("Get auto-increment key names", func() {
@@ -71,8 +71,8 @@ func Test_Key(t *testing.T) {
 		})
 
 		Convey("Get parent section value", func() {
-			So(cfg.Section("package.sub").Key("CLONE_URL").String(), ShouldEqual, "https://yougam/libraries/ini.v1")
-			So(cfg.Section("package.fake.sub").Key("CLONE_URL").String(), ShouldEqual, "https://yougam/libraries/ini.v1")
+			So(cfg.Section("package.sub").Key("CLONE_URL").String(), ShouldEqual, "https://gopkg.in/ini.v1")
+			So(cfg.Section("package.fake.sub").Key("CLONE_URL").String(), ShouldEqual, "https://gopkg.in/ini.v1")
 		})
 
 		Convey("Get multiple line value", func() {

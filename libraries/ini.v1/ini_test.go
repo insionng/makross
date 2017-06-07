@@ -34,14 +34,14 @@ NAME        = ini
 ; Package version
 VERSION     = v1
 ; Package import path
-IMPORT_PATH = yougam/libraries/%(NAME)s.%(VERSION)s
+IMPORT_PATH = gopkg.in/%(NAME)s.%(VERSION)s
 
 # Information about package author
 # Bio can be written in multiple lines.
 [author]
 NAME   = Unknwon  ; Succeeding comment
 E-MAIL = fake@localhost
-GITHUB = https://yougam/libraries/%(NAME)s
+GITHUB = https://github.com/%(NAME)s
 BIO    = """Gopher.
 Coding addict.
 Good man.

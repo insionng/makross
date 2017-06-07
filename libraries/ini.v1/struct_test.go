@@ -100,12 +100,12 @@ type fooBar struct {
 }
 
 const _INVALID_DATA_CONF_STRUCT = `
-Name =
+Name = 
 Age = age
 Male = 123
 Money = money
 Born = nil
-Cities =
+Cities = 
 `
 
 func Test_Struct(t *testing.T) {
