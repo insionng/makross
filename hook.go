@@ -177,6 +177,9 @@ func (m *Makross) DoFilterHook(key string, function func() []byte) []byte {
 
 	if !m.HasActionHook(key) {
 		m.AddFilterHook(key, func([]byte) []byte {
+			if function == nil {
+				return nil
+			}
 			return function()
 		})
 		return m.DoFilterHook(key, function)

@@ -66,10 +66,12 @@ var (
 	}
 )
 
+// NewEnforcer gets an enforcer via CONF, file or DB.
 func NewEnforcer(params ...interface{}) *casbin.Enforcer {
 	return casbin.NewEnforcer(params...)
 }
 
+// NewEnforcerSafe calls NewEnforcer in a safe way, returns error instead of causing panic.
 func NewEnforcerSafe(params ...interface{}) (*casbin.Enforcer, error) {
 	return casbin.NewEnforcerSafe(params...)
 }
