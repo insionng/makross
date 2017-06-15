@@ -102,7 +102,9 @@ func (c *Context) HasFilterHook(key string, globals ...bool) bool {
 
 func (m *Makross) HasActionHook(key string) bool {
 	if _, okay := m.QueuesMap[key]; okay {
-		return true
+		if _, okay := m.QueuesMap[key].Top().(*Node); okay {
+			return true
+		}
 	}
 	return false
 }
@@ -176,9 +178,9 @@ func (c *Context) DoActionHook(key string, globals ...bool) {
 func (m *Makross) DoFilterHook(key string, function func() []byte) []byte {
 
 	if !m.HasActionHook(key) {
-		m.AddFilterHook(key, func([]byte) []byte {
+		m.AddFilterHook(key, func(b []byte) []byte {
 			if function == nil {
-				return nil
+				return b
 			}
 			return function()
 		})
@@ -215,6 +217,7 @@ func (m *Makross) DoFilterHook(key string, function func() []byte) []byte {
 }
 
 func (c *Context) DoFilterHook(key string, function func() []byte, globals ...bool) []byte {
+
 	var global = false
 	if len(globals) > 0 {
 		global = globals[0]
@@ -223,7 +226,10 @@ func (c *Context) DoFilterHook(key string, function func() []byte, globals ...bo
 	var filterBytes []byte
 
 	if !c.HasActionHook(key) {
-		c.AddFilterHook(key, func([]byte) []byte {
+		c.AddFilterHook(key, func(b []byte) []byte {
+			if function == nil {
+				return b
+			}
 			return function()
 		})
 		return c.DoFilterHook(key, function, globals...)
@@ -249,7 +255,6 @@ func (c *Context) DoFilterHook(key string, function func() []byte, globals ...bo
 			if !okay {
 				continue
 			}
-
 			if global {
 				if function != nil { //for Global Filter
 					if c.makross.FiltersMap[key] != nil {
