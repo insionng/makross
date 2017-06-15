@@ -235,14 +235,12 @@ func (c *Context) DoFilterHook(key string, function func() []byte, globals ...bo
 		return c.DoFilterHook(key, function, globals...)
 	}
 
-	if global {
-		if !c.makross.HasFilterHook(key) {
+	if !c.HasFilterHook(key, global) {
+		if global {
 			if c.makross.FiltersMap == nil {
 				c.makross.FiltersMap = make(map[string][]byte)
 			}
-		}
-	} else {
-		if !c.HasFilterHook(key) {
+		} else {
 			if c.FiltersMap == nil {
 				c.FiltersMap = make(map[string][]byte)
 			}
