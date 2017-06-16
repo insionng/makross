@@ -20,6 +20,11 @@ func newRouteGroup(prefix string, makross *Makross, handlers []Handler) *RouteGr
 	}
 }
 
+// SetRenderer registers an HTML template renderer.
+func (rg *RouteGroup) SetRenderer(r Renderer) {
+	rg.makross.renderer = r
+}
+
 // Get adds a GET route to the makross with the given route path and handlers.
 func (rg *RouteGroup) Get(path string, handlers ...Handler) *Route {
 	return rg.add("GET", path, handlers)

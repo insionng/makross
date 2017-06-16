@@ -2,10 +2,12 @@ package makross
 
 import (
 	"pueue"
+	"sync"
 )
 
 var (
-	ops uint64 = 0
+	ops   uint64 = 0
+	mutex sync.RWMutex
 )
 
 type Node struct {
@@ -36,6 +38,8 @@ func (c *Context) NewPriorityQueuesMap() map[string]*pueue.PriorityQueue {
 
 func (m *Makross) RemoveFilterHook(key string) {
 	if m.HasFilterHook(key) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		delete(m.FiltersMap, key)
 	}
 }
@@ -48,18 +52,25 @@ func (c *Context) RemoveFilterHook(key string, globals ...bool) {
 	if global {
 		c.makross.RemoveFilterHook(key)
 	} else if c.HasFilterHook(key) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		delete(c.FiltersMap, key)
 	}
 }
 
 func (m *Makross) RemoveActionHook(key string) {
 	if m.HasActionHook(key) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		delete(m.QueuesMap, key)
 		delete(m.FiltersMap, key)
 	}
 }
 
 func (c *Context) RemoveActionHook(key string, globals ...bool) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	var global = false
 	if len(globals) > 0 {
 		global = globals[0]
@@ -73,6 +84,8 @@ func (c *Context) RemoveActionHook(key string, globals ...bool) {
 }
 
 func (m *Makross) RemoveActionsHook() {
+	mutex.Lock()
+	defer mutex.Unlock()
 	m.QueuesMap = nil
 }
 
@@ -81,6 +94,9 @@ func (c *Context) RemoveActionsHook() {
 }
 
 func (m *Makross) HasFilterHook(key string) bool {
+	mutex.RLock()
+	defer mutex.RUnlock()
+
 	if _, okay := m.FiltersMap[key]; okay {
 		return true
 	}
@@ -88,6 +104,9 @@ func (m *Makross) HasFilterHook(key string) bool {
 }
 
 func (c *Context) HasFilterHook(key string, globals ...bool) bool {
+	mutex.RLock()
+	defer mutex.RUnlock()
+
 	var global = false
 	if len(globals) > 0 {
 		global = globals[0]
@@ -101,6 +120,9 @@ func (c *Context) HasFilterHook(key string, globals ...bool) bool {
 }
 
 func (m *Makross) HasActionHook(key string) bool {
+	mutex.RLock()
+	defer mutex.RUnlock()
+
 	if _, okay := m.QueuesMap[key]; okay {
 		if _, okay := m.QueuesMap[key].Top().(*Node); okay {
 			return true
@@ -128,6 +150,10 @@ func (c *Context) AddActionHook(key string, function func(), priorities ...uint6
 }
 
 func (m *Makross) AddFilterHook(key string, function func([]byte) []byte, priorities ...uint64) {
+	var mutex sync.RWMutex
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	if !m.HasActionHook(key) {
 		if m.QueuesMap == nil {
 			m.QueuesMap = m.NewPriorityQueuesMap()
@@ -147,11 +173,18 @@ func (m *Makross) AddFilterHook(key string, function func([]byte) []byte, priori
 }
 
 func (c *Context) AddFilterHook(key string, function func([]byte) []byte, priorities ...uint64) {
+
 	if !c.HasActionHook(key) {
+		mutex.RLock()
 		if c.makross.QueuesMap == nil {
+			mutex.Lock()
 			c.makross.QueuesMap = c.NewPriorityQueuesMap()
+			mutex.Unlock()
 		}
+		mutex.RUnlock()
+		mutex.Lock()
 		c.makross.QueuesMap[key] = c.NewPriorityQueue()
+		mutex.Unlock()
 	}
 
 	var priority uint64
@@ -162,7 +195,9 @@ func (c *Context) AddFilterHook(key string, function func([]byte) []byte, priori
 		priority = ops
 	}
 
+	mutex.Lock()
 	c.makross.QueuesMap[key].Push(&Node{priority: priority, key: key, callback: function})
+	mutex.Unlock()
 }
 
 // DoActionHook Global DoActionHook
@@ -176,6 +211,9 @@ func (c *Context) DoActionHook(key string, globals ...bool) {
 
 // DoFilterHook Global DoFilterHook
 func (m *Makross) DoFilterHook(key string, function func() []byte) []byte {
+	var mutex sync.RWMutex
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	if !m.HasActionHook(key) {
 		m.AddFilterHook(key, func(b []byte) []byte {
@@ -217,6 +255,9 @@ func (m *Makross) DoFilterHook(key string, function func() []byte) []byte {
 }
 
 func (c *Context) DoFilterHook(key string, function func() []byte, globals ...bool) []byte {
+	var mutex sync.RWMutex
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	var global = false
 	if len(globals) > 0 {
