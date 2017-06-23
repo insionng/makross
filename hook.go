@@ -255,9 +255,6 @@ func (m *Makross) DoFilterHook(key string, function func() []byte) []byte {
 }
 
 func (c *Context) DoFilterHook(key string, function func() []byte, globals ...bool) []byte {
-	var mutex sync.RWMutex
-	mutex.Lock()
-	defer mutex.Unlock()
 
 	var global = false
 	if len(globals) > 0 {
@@ -289,8 +286,28 @@ func (c *Context) DoFilterHook(key string, function func() []byte, globals ...bo
 	}
 
 	if c.HasActionHook(key) {
-		for c.makross.QueuesMap[key].Len() > 0 {
-			n, okay := c.makross.QueuesMap[key].Pop().(*Node)
+
+		var source *pueue.PriorityQueue
+		var present bool
+
+		mutex.RLock()
+		if source, present = c.makross.QueuesMap[key]; !present {
+			// The source wasn't found, so we'll create it.
+			mutex.RUnlock()
+			mutex.Lock()
+			if source, present = c.makross.QueuesMap[key]; !present {
+				source = pueue.New()
+
+				// Insert the newly created *PriorityQueue.
+				c.makross.QueuesMap[key] = source
+			}
+			mutex.Unlock()
+		} else {
+			mutex.RUnlock()
+		}
+
+		for source.Len() > 0 {
+			n, okay := source.Pop().(*Node)
 			if !okay {
 				continue
 			}

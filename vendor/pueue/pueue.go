@@ -5,8 +5,6 @@ import (
 	"sync"
 )
 
-var mutex sync.RWMutex
-
 type Interface interface {
 	Less(other interface{}) bool
 }
@@ -15,15 +13,10 @@ type sorter []Interface
 
 // Implement heap.Interface: Push, Pop, Len, Less, Swap
 func (s *sorter) Push(x interface{}) {
-	mutex.Lock()
-	defer mutex.Unlock()
 	*s = append(*s, x.(Interface))
 }
 
 func (s *sorter) Pop() interface{} {
-	mutex.RLock()
-	defer mutex.RUnlock()
-
 	n := len(*s)
 	if n > 0 {
 		x := (*s)[n-1]
@@ -34,21 +27,17 @@ func (s *sorter) Pop() interface{} {
 }
 
 func (s *sorter) Len() int {
-	mutex.RLock()
-	defer mutex.RUnlock()
 	return len(*s)
 }
 
 func (s *sorter) Less(i, j int) bool {
-	mutex.RLock()
-	defer mutex.RUnlock()
 	return (*s)[i].Less((*s)[j])
 }
 
 func (s *sorter) Swap(i, j int) {
-	mutex.Lock()
-	defer mutex.Unlock()
-	(*s)[i], (*s)[j] = (*s)[j], (*s)[i]
+	if (i >= 0) && (j >= 0) {
+		(*s)[i], (*s)[j] = (*s)[j], (*s)[i]
+	}
 }
 
 // Define priority queue struct
@@ -71,10 +60,13 @@ func (q *PriorityQueue) Push(x Interface) {
 	heap.Push(q.s, x)
 }
 
-func (q *PriorityQueue) Pop() Interface {
+func (q *PriorityQueue) Pop() (i Interface) {
 	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	return heap.Pop(q.s).(Interface)
+	if hPop := heap.Pop(q.s); hPop != nil {
+		i = hPop.(Interface)
+	}
+	q.mutex.RUnlock()
+	return
 }
 
 func (q *PriorityQueue) Top() Interface {
