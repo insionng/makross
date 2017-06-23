@@ -1,6 +1,5 @@
-*.js linguist-vendored=false
-*.css linguist-vendored=false
-*.html linguist-vendored=false
-*.php linguist-vendored=false
-
+*.js linguist-language=Go
+*.css linguist-language=Go
+*.html linguist-language=Go
+*.php linguist-language=Go
 
