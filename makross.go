@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"path"
-	"pueue"
 	"sort"
 	"strings"
 	"sync"
@@ -29,8 +28,8 @@ type (
 		stores      map[string]routeStore
 		data        map[string]interface{} // data items managed by Key , Value
 
-		QueuesMap  map[string]*pueue.PriorityQueue
-		FiltersMap map[string][]byte // Global Filters
+		QueuesMap  *sync.Map //map[string]*prior.PriorityQueue
+		FiltersMap *sync.Map //map[string][]byte // Global Filters
 
 		maxParams        int
 		notFound         []Handler
@@ -305,8 +304,8 @@ func New() (m *Makross) {
 		Server:      new(http.Server),
 		namedRoutes: make(map[string]*Route),
 		stores:      make(map[string]routeStore),
-		QueuesMap:   make(map[string]*pueue.PriorityQueue),
-		FiltersMap:  make(map[string][]byte),
+		QueuesMap:   new(sync.Map),
+		FiltersMap:  new(sync.Map),
 	}
 	m.Server.Handler = m
 	m.RouteGroup = *newRouteGroup("", m, make([]Handler, 0))

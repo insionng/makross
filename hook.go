@@ -1,49 +1,49 @@
 package makross
 
 import (
-	"pueue"
 	"sync"
+
+	"github.com/insionng/prior"
 )
 
 var (
-	ops   uint64 = 0
-	mutex sync.RWMutex
+	// DefaultPriority 默认优先级为0值
+	DefaultPriority int
+	callback        func([]byte) []byte
 )
 
-type Node struct {
-	priority uint64
-	key      string
-	callback func([]byte) []byte
+// NewPriorityQueue New PriorityQueue
+func (m *Makross) NewPriorityQueue() *prior.PriorityQueue {
+	return prior.NewPriorityQueue()
 }
 
-func (n *Node) Less(other interface{}) bool {
-	return n.priority < other.(*Node).priority
-}
-
-func (m *Makross) NewPriorityQueue() *pueue.PriorityQueue {
-	return pueue.New()
-}
-
-func (c *Context) NewPriorityQueue() *pueue.PriorityQueue {
+// NewPriorityQueue New PriorityQueue
+func (c *Context) NewPriorityQueue() *prior.PriorityQueue {
 	return c.makross.NewPriorityQueue()
 }
 
-func (m *Makross) NewPriorityQueuesMap() map[string]*pueue.PriorityQueue {
-	return map[string]*pueue.PriorityQueue{}
+// SetPriorityQueueWith c.makross.QueuesMap[key] = c.NewPriorityQueue()
+func (m *Makross) SetPriorityQueueWith(key interface{}) *sync.Map {
+	if m.QueuesMap == nil {
+		m.QueuesMap = new(sync.Map)
+	}
+	m.QueuesMap.Store(key, m.NewPriorityQueue())
+	return m.QueuesMap
 }
 
-func (c *Context) NewPriorityQueuesMap() map[string]*pueue.PriorityQueue {
-	return c.makross.NewPriorityQueuesMap()
+// SetPriorityQueueWith c.makross.QueuesMap[key] = c.NewPriorityQueue()
+func (c *Context) SetPriorityQueueWith(key interface{}) *sync.Map {
+	return c.makross.SetPriorityQueueWith(key)
 }
 
+// RemoveFilterHook (m *Makross) 删除过滤钩子
 func (m *Makross) RemoveFilterHook(key string) {
 	if m.HasFilterHook(key) {
-		mutex.Lock()
-		defer mutex.Unlock()
-		delete(m.FiltersMap, key)
+		m.FiltersMap.Delete(key)
 	}
 }
 
+// RemoveFilterHook (c *Context) 删除过滤钩子
 func (c *Context) RemoveFilterHook(key string, globals ...bool) {
 	var global = false
 	if len(globals) > 0 {
@@ -52,24 +52,20 @@ func (c *Context) RemoveFilterHook(key string, globals ...bool) {
 	if global {
 		c.makross.RemoveFilterHook(key)
 	} else if c.HasFilterHook(key) {
-		mutex.Lock()
-		defer mutex.Unlock()
-		delete(c.FiltersMap, key)
+		c.FiltersMap.Delete(key)
 	}
 }
 
+// RemoveActionHook (m *Makross) 删除动作钩子
 func (m *Makross) RemoveActionHook(key string) {
 	if m.HasActionHook(key) {
-		mutex.Lock()
-		defer mutex.Unlock()
-		delete(m.QueuesMap, key)
-		delete(m.FiltersMap, key)
+		m.QueuesMap.Delete(key)
+		m.FiltersMap.Delete(key)
 	}
 }
 
+// RemoveActionHook (c *Context) 删除动作钩子
 func (c *Context) RemoveActionHook(key string, globals ...bool) {
-	mutex.Lock()
-	defer mutex.Unlock()
 
 	var global = false
 	if len(globals) > 0 {
@@ -78,34 +74,31 @@ func (c *Context) RemoveActionHook(key string, globals ...bool) {
 	if global {
 		c.makross.RemoveActionHook(key)
 	} else if c.HasActionHook(key) {
-		delete(c.makross.QueuesMap, key)
-		delete(c.FiltersMap, key)
+		c.makross.QueuesMap.Delete(key)
+		c.FiltersMap.Delete(key)
 	}
 }
 
+// RemoveActionsHook (m *Makross) 删除所有动作钩子
 func (m *Makross) RemoveActionsHook() {
-	mutex.Lock()
-	defer mutex.Unlock()
 	m.QueuesMap = nil
 }
 
+// RemoveActionsHook (c *Context) 删除所有动作钩子
 func (c *Context) RemoveActionsHook() {
 	c.makross.RemoveActionsHook()
 }
 
+// HasFilterHook (m *Makross) 是否有过滤钩子
 func (m *Makross) HasFilterHook(key string) bool {
-	mutex.RLock()
-	defer mutex.RUnlock()
-
-	if _, okay := m.FiltersMap[key]; okay {
+	if _, okay := m.FiltersMap.Load(key); okay {
 		return true
 	}
 	return false
 }
 
+// HasFilterHook (c *Context) 是否有过滤钩子
 func (c *Context) HasFilterHook(key string, globals ...bool) bool {
-	mutex.RLock()
-	defer mutex.RUnlock()
 
 	var global = false
 	if len(globals) > 0 {
@@ -113,109 +106,115 @@ func (c *Context) HasFilterHook(key string, globals ...bool) bool {
 	}
 	if global {
 		return c.makross.HasFilterHook(key)
-	} else if _, okay := c.FiltersMap[key]; okay {
-		return true
+	}
+	if c.FiltersMap != nil {
+		if _, okay := c.FiltersMap.Load(key); okay {
+			return true
+		}
+	}
+
+	return false
+}
+
+// HasQueuesMap (m *Makross) Has QueuesMap
+func (m *Makross) HasQueuesMap(key string) bool {
+	if value, okay := m.QueuesMap.Load(key); okay {
+		if pqueue, okay := value.(*prior.PriorityQueue); okay {
+			if pqueue.Length() > 0 {
+				return true
+			}
+		}
 	}
 	return false
 }
 
-func (m *Makross) HasActionHook(key string) bool {
-	mutex.RLock()
-	defer mutex.RUnlock()
+// HasQueuesMap (c *Context) Has QueuesMap
+func (c *Context) HasQueuesMap(key string) bool {
+	return c.makross.HasQueuesMap(key)
+}
 
-	if _, okay := m.QueuesMap[key]; okay {
-		if _, okay := m.QueuesMap[key].Top().(*Node); okay {
+// HasActionHook (m *Makross) 是否有动作钩子
+func (m *Makross) HasActionHook(key string) bool {
+	if value, okay := m.QueuesMap.Load(key); okay {
+		if _, okay := value.(*prior.PriorityQueue); okay {
 			return true
 		}
 	}
 	return false
 }
 
+// HasActionHook (c *Context) 是否有动作钩子
 func (c *Context) HasActionHook(key string) bool {
 	return c.makross.HasActionHook(key)
 }
 
-func (m *Makross) AddActionHook(key string, function func(), priorities ...uint64) {
+// AddActionHook (m *Makross) 增加动作钩子
+func (m *Makross) AddActionHook(key string, function func(), priorities ...int) {
 	m.AddFilterHook(key, func([]byte) []byte {
 		function()
 		return nil
 	}, priorities...)
 }
 
-func (c *Context) AddActionHook(key string, function func(), priorities ...uint64) {
+// AddActionHook (c *Context) 增加动作钩子
+func (c *Context) AddActionHook(key string, function func(), priorities ...int) {
 	c.AddFilterHook(key, func([]byte) []byte {
 		function()
 		return nil
 	}, priorities...)
 }
 
-func (m *Makross) AddFilterHook(key string, function func([]byte) []byte, priorities ...uint64) {
-	var mutex sync.RWMutex
-	mutex.Lock()
-	defer mutex.Unlock()
+// AddFilterHook (m *Makross) 增加过滤钩子
+func (m *Makross) AddFilterHook(key string, function func([]byte) []byte, priorities ...int) {
 
-	if !m.HasActionHook(key) {
-		if m.QueuesMap == nil {
-			m.QueuesMap = m.NewPriorityQueuesMap()
-		}
-		m.QueuesMap[key] = m.NewPriorityQueue()
+	if !m.HasQueuesMap(key) {
+		m.SetPriorityQueueWith(key)
 	}
 
-	var priority uint64
+	var priority int
 	if len(priorities) > 0 {
 		priority = priorities[0]
 	} else {
-		//atomic.AddUint64(&ops, 1)
-		priority = ops
+		priority = DefaultPriority
 	}
+	pq := m.NewPriorityQueue()
+	pq.Push(prior.NewNode(key, function, priority))
+	m.QueuesMap.Store(key, pq)
 
-	m.QueuesMap[key].Push(&Node{priority: priority, key: key, callback: function})
 }
 
-func (c *Context) AddFilterHook(key string, function func([]byte) []byte, priorities ...uint64) {
+// AddFilterHook (c *Context) 增加过滤钩子
+func (c *Context) AddFilterHook(key string, function func([]byte) []byte, priorities ...int) {
 
-	if !c.HasActionHook(key) {
-		mutex.RLock()
-		if c.makross.QueuesMap == nil {
-			mutex.Lock()
-			c.makross.QueuesMap = c.NewPriorityQueuesMap()
-			mutex.Unlock()
-		}
-		mutex.RUnlock()
-		mutex.Lock()
-		c.makross.QueuesMap[key] = c.NewPriorityQueue()
-		mutex.Unlock()
+	if !c.HasQueuesMap(key) {
+		c.makross.SetPriorityQueueWith(key)
 	}
 
-	var priority uint64
+	var priority int
 	if len(priorities) > 0 {
 		priority = priorities[0]
 	} else {
-		//atomic.AddUint64(&ops, 1)
-		priority = ops
+		priority = DefaultPriority
 	}
 
-	mutex.Lock()
-	c.makross.QueuesMap[key].Push(&Node{priority: priority, key: key, callback: function})
-	mutex.Unlock()
+	pq := c.NewPriorityQueue()
+	pq.Push(prior.NewNode(key, function, priority))
+	c.makross.QueuesMap.Store(key, pq)
 }
 
-// DoActionHook Global DoActionHook
+// DoActionHook (m *Makross) 动作钩子
 func (m *Makross) DoActionHook(key string) {
 	m.DoFilterHook(key, nil)
 }
 
+// DoActionHook (c *Context) 动作钩子
 func (c *Context) DoActionHook(key string, globals ...bool) {
 	c.DoFilterHook(key, nil, globals...)
 }
 
-// DoFilterHook Global DoFilterHook
+// DoFilterHook (m *Makross) 执行过滤钩子
 func (m *Makross) DoFilterHook(key string, function func() []byte) []byte {
-	var mutex sync.RWMutex
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	if !m.HasActionHook(key) {
+	if !m.HasQueuesMap(key) {
 		m.AddFilterHook(key, func(b []byte) []byte {
 			if function == nil {
 				return b
@@ -224,38 +223,57 @@ func (m *Makross) DoFilterHook(key string, function func() []byte) []byte {
 		})
 		return m.DoFilterHook(key, function)
 	}
-
 	if !m.HasFilterHook(key) {
 		if m.FiltersMap == nil {
-			m.FiltersMap = make(map[string][]byte)
+			m.FiltersMap = new(sync.Map) //make(map[string][]byte)
 		}
 	}
 
 	if m.HasActionHook(key) {
-		for m.QueuesMap[key].Len() > 0 {
-			n, okay := m.QueuesMap[key].Pop().(*Node)
+		if queue, okay := m.QueuesMap.Load(key); okay {
+			pq, okay := queue.(*prior.PriorityQueue)
 			if !okay {
-				continue
+				return nil
 			}
-
-			if function != nil { //for Global Filter
-				if m.FiltersMap[key] != nil {
-					m.FiltersMap[key] = n.callback(m.FiltersMap[key])
+			for pq.Length() > 0 {
+				if node := pq.Pop(); node != nil {
+					if value := node.GetValue(); value != nil {
+						if callback, okay = value.(func([]byte) []byte); !okay {
+							return nil
+						}
+					} else {
+						continue
+					}
 				} else {
-					m.FiltersMap[key] = n.callback(function())
+					continue
 				}
-			} else { //for Global Action
-				m.FiltersMap[key] = n.callback(nil)
+
+				if function != nil { //for Global Filter
+					if value, okay := m.FiltersMap.Load(key); okay {
+						if b, okay := value.([]byte); okay {
+							m.FiltersMap.Store(key, callback(b))
+						}
+					} else {
+						m.FiltersMap.Store(key, callback(function()))
+					}
+				} else { //for Global Action
+					m.FiltersMap.Store(key, callback(nil))
+				}
+
 			}
 		}
 	}
 
-	return m.FiltersMap[key]
-
+	if value, okay := m.FiltersMap.Load(key); okay {
+		if b, okay := value.([]byte); okay {
+			return b
+		}
+	}
+	return nil
 }
 
+// DoFilterHook (c *Context) 执行过滤钩子
 func (c *Context) DoFilterHook(key string, function func() []byte, globals ...bool) []byte {
-
 	var global = false
 	if len(globals) > 0 {
 		global = globals[0]
@@ -263,7 +281,7 @@ func (c *Context) DoFilterHook(key string, function func() []byte, globals ...bo
 
 	var filterBytes []byte
 
-	if !c.HasActionHook(key) {
+	if !c.HasQueuesMap(key) {
 		c.AddFilterHook(key, func(b []byte) []byte {
 			if function == nil {
 				return b
@@ -276,65 +294,70 @@ func (c *Context) DoFilterHook(key string, function func() []byte, globals ...bo
 	if !c.HasFilterHook(key, global) {
 		if global {
 			if c.makross.FiltersMap == nil {
-				c.makross.FiltersMap = make(map[string][]byte)
+				c.makross.FiltersMap = new(sync.Map) //make(map[string][]byte)
 			}
 		} else {
 			if c.FiltersMap == nil {
-				c.FiltersMap = make(map[string][]byte)
+				c.FiltersMap = new(sync.Map) // make(map[string][]byte)
 			}
 		}
 	}
 
 	if c.HasActionHook(key) {
-
-		var source *pueue.PriorityQueue
-		var present bool
-
-		mutex.RLock()
-		if source, present = c.makross.QueuesMap[key]; !present {
-			// The source wasn't found, so we'll create it.
-			mutex.RUnlock()
-			mutex.Lock()
-			if source, present = c.makross.QueuesMap[key]; !present {
-				source = pueue.New()
-
-				// Insert the newly created *PriorityQueue.
-				c.makross.QueuesMap[key] = source
-			}
-			mutex.Unlock()
-		} else {
-			mutex.RUnlock()
-		}
-
-		for source.Len() > 0 {
-			n, okay := source.Pop().(*Node)
+		if queue, okay := c.makross.QueuesMap.Load(key); okay {
+			pq, okay := queue.(*prior.PriorityQueue)
 			if !okay {
-				continue
+				return nil
 			}
-			if global {
-				if function != nil { //for Global Filter
-					if c.makross.FiltersMap[key] != nil {
-						c.makross.FiltersMap[key] = n.callback(c.makross.FiltersMap[key])
+			for pq.Length() > 0 {
+				if node := pq.Pop(); node != nil {
+					if value := node.GetValue(); value != nil {
+						if callback, okay = value.(func([]byte) []byte); !okay {
+							return nil
+						}
 					} else {
-						c.makross.FiltersMap[key] = n.callback(function())
+						continue
 					}
-				} else { //for Global Action
-					c.makross.FiltersMap[key] = n.callback(nil)
+				} else {
+					continue
 				}
-				filterBytes = c.makross.FiltersMap[key]
-			} else {
-				if function != nil { //for Filter
-					if c.FiltersMap[key] != nil {
-						c.FiltersMap[key] = n.callback(c.FiltersMap[key])
-					} else {
-						c.FiltersMap[key] = n.callback(function())
-					}
-				} else { //for Action
-					c.FiltersMap[key] = n.callback(nil)
-				}
-				filterBytes = c.FiltersMap[key]
-			}
 
+				if global {
+					if function != nil { //for Global Filter
+						if value, okay := c.makross.FiltersMap.Load(key); okay {
+							if b, okay := value.([]byte); okay {
+								c.makross.FiltersMap.Store(key, callback(b))
+							}
+						} else {
+							c.makross.FiltersMap.Store(key, callback(function()))
+						}
+					} else { //for Global Action
+						c.makross.FiltersMap.Store(key, callback(nil))
+					}
+					if value, okay := c.makross.FiltersMap.Load(key); okay {
+						if b, okay := value.([]byte); okay {
+							filterBytes = b
+						}
+					}
+				} else {
+					if function != nil { //for Filter
+						if value, okay := c.FiltersMap.Load(key); okay {
+							if b, okay := value.([]byte); okay {
+								c.FiltersMap.Store(key, callback(b))
+							}
+						} else {
+							c.FiltersMap.Store(key, callback(function()))
+						}
+					} else { //for Action
+						c.FiltersMap.Store(key, callback(nil))
+					}
+					if value, okay := c.FiltersMap.Load(key); okay {
+						if b, okay := value.([]byte); okay {
+							filterBytes = b
+						}
+					}
+				}
+			}
 		}
 	}
 

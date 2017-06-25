@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/insionng/makross/libraries/i18n"
@@ -38,7 +39,7 @@ type (
 		pnames     []string               // list of route parameter names
 		pvalues    []string               // list of parameter values corresponding to pnames
 		data       map[string]interface{} // data items managed by Get and Set
-		FiltersMap map[string][]byte      // Not Global Filters, only in Context
+		FiltersMap *sync.Map              //map[string][]byte      // Not Global Filters, only in Context
 		index      int                    // the index of the currently executing handler in handlers
 		handlers   []Handler              // the handlers associated with the current route
 		writer     DataWriter
@@ -61,7 +62,7 @@ func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 	c.Request = r
 	c.ktx = ktx.Background()
 	c.data = nil
-	c.FiltersMap = nil
+	c.FiltersMap = new(sync.Map)
 	c.index = -1
 	c.writer = DefaultDataWriter
 }
