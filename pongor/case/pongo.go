@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/insionng/makross"
 	//"github.com/insionng/makross/fault"
 	"github.com/insionng/makross/logger"
@@ -21,6 +23,13 @@ func main() {
 
 	v.SetRenderer(pongor.Renderor())
 	v.Get("/", func(self *makross.Context) error {
+
+		if self.Request.Method == makross.GET {
+			fmt.Println("Request Method Is [GET]!")
+		} else {
+			fmt.Println("Request Method Is Not [GET]!")
+		}
+
 		var data = make(map[string]interface{})
 		data["name"] = "Insion Ng"
 		self.SetStore(data)
