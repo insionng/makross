@@ -341,7 +341,6 @@ func (m *Makross) AcquireContext() *Context {
 // ReleaseContext returns the `Context` instance back to the pool.
 // You must call it after `AcquireContext()`.
 func (m *Makross) ReleaseContext(c *Context) {
-	c.Response.Header().Set("Server", "Makross")
 	m.pool.Put(c)
 }
 
@@ -350,6 +349,7 @@ func (m *Makross) ReleaseContext(c *Context) {
 func (m *Makross) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	c := m.AcquireContext()
 	c.Reset(res, req)
+	c.Response.Header().Set("Server", "Makross")
 	c.handlers, c.pnames = m.find(req.Method, req.URL.Path, c.pvalues)
 	if err := c.Next(); err != nil {
 		m.HandleError(c, err)
