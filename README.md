@@ -164,7 +164,7 @@ func main() {
 		return self.JSON(data)
 	})
 
-	m.Listen(":9000")
+	m.Listen(9000)
 }
 ```
 

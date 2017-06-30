@@ -148,7 +148,7 @@ type Options struct {
 	CachePrefix string
 }
 
-func prepareOptions(options []Options) Options {
+func prepareOptions(options ...Options) Options {
 	var opt Options
 	if len(options) > 0 {
 		opt = options[0]
@@ -188,7 +188,8 @@ func prepareOptions(options []Options) Options {
 }
 
 // NewCaptcha initializes and returns a captcha with given options.
-func NewCaptcha(opt Options) *Captcha {
+func NewCaptcha(opts ...Options) *Captcha {
+	opt := prepareOptions(opts...)
 	return &Captcha{
 		SubURL:           opt.SubURL,
 		URLPrefix:        opt.URLPrefix,
@@ -207,7 +208,7 @@ func NewCaptcha(opt Options) *Captcha {
 // This should be register after cache.Cacher.
 func Captchaer(options ...Options) makross.Handler {
 	return func(self *makross.Context) error {
-		cpt := NewCaptcha(prepareOptions(options))
+		cpt := NewCaptcha(options...)
 		cpt.store = cache.Store(self)
 		if strings.HasPrefix(string(self.Request.URL.Path), cpt.URLPrefix) {
 			var chars string
