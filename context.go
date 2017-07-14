@@ -236,6 +236,24 @@ func (c *Context) Bind(i interface{}) error {
 	return c.makross.binder.Bind(i, c)
 }
 
+func (c *Context) UserAgent() string {
+	return c.Request.UserAgent()
+}
+
+func (c *Context) RequestURI() string {
+	return c.Request.RequestURI
+}
+
+func (c *Context) RequestBody() io.Reader {
+	rb, _ := c.Request.GetBody()
+	return rb
+}
+
+func (c *Context) MultipartForm() (*multipart.Form, error) {
+	err := c.Request.ParseMultipartForm(defaultMemory)
+	return c.Request.MultipartForm, err
+}
+
 func (c *Context) QueryString() string {
 	return c.Request.URL.RawQuery
 }
