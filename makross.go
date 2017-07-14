@@ -34,6 +34,7 @@ type (
 		maxParams        int
 		notFound         []Handler
 		notFoundHandlers []Handler
+		binder           Binder
 		renderer         Renderer
 		Server           *http.Server
 	}
@@ -93,6 +94,8 @@ const (
 	MIMEApplicationJavaScriptCharsetUTF8 = MIMEApplicationJavaScript + "; " + charsetUTF8
 	MIMEApplicationXML                   = "application/xml"
 	MIMEApplicationXMLCharsetUTF8        = MIMEApplicationXML + "; " + charsetUTF8
+	MIMETextXML                          = "text/xml"
+	MIMETextXMLCharsetUTF8               = MIMETextXML + "; " + charsetUTF8
 	MIMEApplicationForm                  = "application/x-www-form-urlencoded"
 	MIMEApplicationProtobuf              = "application/protobuf"
 	MIMEApplicationMsgpack               = "application/msgpack"
@@ -310,6 +313,7 @@ func New() (m *Makross) {
 	m.Server.Handler = m
 	m.RouteGroup = *newRouteGroup("", m, make([]Handler, 0))
 	m.NotFound(MethodNotAllowedHandler, NotFoundHandler)
+	m.SetBinder(&DefaultBinder{})
 	m.pool.New = func() interface{} {
 		return m.NewContext(nil, nil)
 	}
@@ -399,6 +403,16 @@ func (m *Makross) SetRenderer(r Renderer) {
 	m.renderer = r
 }
 
+// SetBinder registers a custom binder. It's invoked by `Context#Bind()`.
+func (m *Makross) SetBinder(b Binder) {
+	m.binder = b
+}
+
+// Binder returns the binder instance.
+func (m *Makross) Binder() Binder {
+	return m.binder
+}
+
 func (m *Makross) Pull(key string) interface{} {
 	return m.data[key]
 }
@@ -455,6 +469,7 @@ func (r *Makross) NotFound(handlers ...Handler) {
 }
 
 // HandleError is the error handler for handling any unhandled errors.
+/*
 func (r *Makross) HandleError(c *Context, err error) {
 	if httpError, okay := err.(HTTPError); okay {
 		http.Error(c.Response, httpError.Error(), httpError.StatusCode())
@@ -462,6 +477,30 @@ func (r *Makross) HandleError(c *Context, err error) {
 		if e, o := err.(error); o {
 			http.Error(c.Response, e.Error(), StatusInternalServerError)
 		}
+	}
+}
+*/
+
+// NewHTTPError creates a new HTTPError instance.
+func (m *Makross) NewHTTPError(status int, message ...interface{}) *HTTPError {
+	return NewHTTPError(status, message...)
+}
+
+// HandleError is the error handler for handling any unhandled errors.
+func (m *Makross) HandleError(c *Context, err interface{}) {
+
+	status := StatusInternalServerError
+	msg := StatusText(status)
+	if httpError, okay := err.(*HTTPError); okay {
+		status = httpError.Status
+		msg = httpError.Message
+	} else if iError, okay := err.(error); okay {
+		msg = iError.Error()
+	}
+	if c.Request != nil && c.Request.Method == HEAD {
+		c.NoContent(status)
+	} else {
+		c.String(msg, status)
 	}
 }
 

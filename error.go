@@ -20,36 +20,28 @@ var (
 	ErrCookieNotFound              = errors.New("cookie not found")
 )
 
-// HTTPError represents an HTTP error with HTTP status code and error message
-type HTTPError interface {
-	error
-	// StatusCode returns the HTTP status code of the error
-	StatusCode() int
-}
-
 // Error contains the error information reported by calling Context.Error().
-type httpError struct {
-	Status  int    `json:"Status" xml:"Status"`
-	Message string `json:"Message" xml:"Message"`
+// HTTPError represents an error that occurred while handling a request.
+type HTTPError struct {
+	Status  int    //`json:"status" xml:"status"`
+	Message string //`json:"message" xml:"message"`
 }
 
-// NewHTTPError creates a new HttpError instance.
-// If the error message is not given, http.StatusText() will be called
-// to generate the message based on the status code.
-func NewHTTPError(status int, message ...interface{}) HTTPError {
-	he := httpError{Status: status, Message: StatusText(status)}
+// NewHTTPError creates a new HTTPError instance.
+func NewHTTPError(status int, message ...interface{}) *HTTPError {
+	he := &HTTPError{Status: status, Message: StatusText(status)}
 	if len(message) > 0 {
 		he.Message = fmt.Sprint(message...)
 	}
-	return &he
+	return he
 }
 
 // Error returns the error message.
-func (e *httpError) Error() string {
+func (e *HTTPError) Error() string {
 	return e.Message
 }
 
 // StatusCode returns the HTTP status code.
-func (e *httpError) StatusCode() int {
+func (e *HTTPError) StatusCode() int {
 	return e.Status
 }

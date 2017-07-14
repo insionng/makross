@@ -4,8 +4,6 @@
 package fault
 
 import (
-	"net/http"
-
 	"github.com/insionng/makross"
 )
 
@@ -43,22 +41,9 @@ func ErrorHandler(logf LogFunc, errorf ...ConvertErrorFunc) makross.Handler {
 			err = errorf[0](c, err)
 		}
 
-		//writeError(c, err)
 		c.HandleError(err)
 		c.Abort()
 
 		return nil
 	}
-}
-
-// writeError writes the error to the response.
-// If the error implements HTTPError, it will set the HTTP status as the result of the StatusCode() call of the error.
-// Otherwise, the HTTP status will be set as http.StatusInternalServerError.
-func writeError(c *makross.Context, err error) {
-	if httpError, ok := err.(makross.HTTPError); ok {
-		c.Response.WriteHeader(httpError.StatusCode())
-	} else {
-		c.Response.WriteHeader(http.StatusInternalServerError)
-	}
-	c.Write(err)
 }

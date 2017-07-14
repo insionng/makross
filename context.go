@@ -10,12 +10,14 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,7 +25,8 @@ import (
 )
 
 const (
-	indexPage = "index.html"
+	indexPage     = "index.html"
+	defaultMemory = 32 << 20 // 32 MB
 )
 
 type (
@@ -133,6 +136,11 @@ func (c *Context) GetCookies() []*http.Cookie {
 	return c.Request.Cookies()
 }
 
+// NewHTTPError creates a new HTTPError instance.
+func (c *Context) NewHTTPError(status int, message ...interface{}) *HTTPError {
+	return c.makross.NewHTTPError(status, message...)
+}
+
 func (c *Context) Error(status int, message ...interface{}) {
 	herr := NewHTTPError(status, message...)
 	c.HandleError(herr)
@@ -224,8 +232,42 @@ func (c *Context) PushStore(data map[string]interface{}) {
 	}
 }
 
+func (c *Context) Bind(i interface{}) error {
+	return c.makross.binder.Bind(i, c)
+}
+
 func (c *Context) QueryString() string {
 	return c.Request.URL.RawQuery
+}
+
+func (c *Context) QueryParam(name string) string {
+	return c.Request.URL.Query().Get(name)
+}
+
+func (c *Context) QueryParams() url.Values {
+	return c.Request.URL.Query()
+}
+
+func (c *Context) FormFile(name string) (*multipart.FileHeader, error) {
+	_, fh, err := c.Request.FormFile(name)
+	return fh, err
+}
+
+func (c *Context) FormValue(name string) string {
+	return c.Request.FormValue(name)
+}
+
+func (c *Context) FormParams() (url.Values, error) {
+	if strings.HasPrefix(c.Request.Header.Get(HeaderContentType), MIMEMultipartForm) {
+		if err := c.Request.ParseMultipartForm(defaultMemory); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := c.Request.ParseForm(); err != nil {
+			return nil, err
+		}
+	}
+	return c.Request.Form, nil
 }
 
 // Query returns the first value for the named component of the URL query parameters.
@@ -712,10 +754,23 @@ func (c *Context) IsTLS() bool {
 }
 
 func (c *Context) Scheme() string {
+
 	// Can't use `r.Request.URL.Scheme`
 	// See: https://groups.google.com/forum/#!topic/golang-nuts/pMUkBlQBDF0
 	if c.IsTLS() {
 		return "https"
+	}
+	if scheme := c.Request.Header.Get(HeaderXForwardedProto); scheme != "" {
+		return scheme
+	}
+	if scheme := c.Request.Header.Get(HeaderXForwardedProtocol); scheme != "" {
+		return scheme
+	}
+	if ssl := c.Request.Header.Get(HeaderXForwardedSsl); ssl == "on" {
+		return "https"
+	}
+	if scheme := c.Request.Header.Get(HeaderXUrlScheme); scheme != "" {
+		return scheme
 	}
 	return "http"
 }

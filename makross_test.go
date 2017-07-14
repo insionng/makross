@@ -11,6 +11,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type (
+	user struct {
+		ID   int    `json:"id" xml:"id" form:"id" query:"id"`
+		Name string `json:"name" xml:"name" form:"name" query:"name"`
+	}
+)
+
+const (
+	userJSON       = `{"id":1,"name":"Jon Snow"}`
+	userXML        = `<user><id>1</id><name>Jon Snow</name></user>`
+	userForm       = `id=1&name=Jon Snow`
+	invalidContent = "invalid content"
+)
+
 func TestRouterNotFound(t *testing.T) {
 	r := New()
 	r.Get("/users", func(c *Context) error {

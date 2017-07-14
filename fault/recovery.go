@@ -46,7 +46,7 @@ func Recovery(logf LogFunc, errorf ...ConvertErrorFunc) makross.Handler {
 			if len(errorf) > 0 {
 				err = errorf[0](c, err)
 			}
-			writeError(c, err)
+			c.HandleError(err)
 			c.Abort()
 		}
 		return nil
