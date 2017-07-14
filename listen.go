@@ -3,6 +3,7 @@
 package makross
 
 import (
+	"log"
 	"os"
 	"runtime"
 	"strconv"
@@ -18,7 +19,8 @@ func (m *Makross) Listen(args ...interface{}) {
 	}
 	m.DoActionHook("MakrossListen")
 	m.Server.Addr = addr
-	m.Server.ListenAndServe()
+
+	log.Fatal(m.Server.ListenAndServe())
 }
 
 func (m *Makross) ListenTLS(certFile, keyFile string, args ...interface{}) {
@@ -30,7 +32,8 @@ func (m *Makross) ListenTLS(certFile, keyFile string, args ...interface{}) {
 	}
 	m.DoActionHook("MakrossListenTLS")
 	m.Server.Addr = addr
-	m.Server.ListenAndServeTLS(certFile, keyFile)
+
+	log.Fatal(m.Server.ListenAndServeTLS(certFile, keyFile))
 }
 
 func GetAddress(args ...interface{}) string {
