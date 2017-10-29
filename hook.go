@@ -17,9 +17,17 @@ func (m *Makross) NewPriorityQueue() *prior.PriorityQueue {
 	return prior.NewPriorityQueue()
 }
 
+func (m *Makross) NewNode(key interface{}, v interface{}, priority int) *prior.Node {
+	return prior.NewNode(key, v, priority)
+}
+
 // NewPriorityQueue New PriorityQueue
 func (c *Context) NewPriorityQueue() *prior.PriorityQueue {
 	return c.makross.NewPriorityQueue()
+}
+
+func (c *Context) NewNode(key interface{}, v interface{}, priority int) *prior.Node {
+	return prior.NewNode(key, v, priority)
 }
 
 // SetPriorityQueueWith c.makross.QueuesMap[key] = c.NewPriorityQueue()
